@@ -21,9 +21,11 @@ async function getDbStatus(): Promise<DbStatus> {
   }
   try {
     const supabase = createServerClient();
-    const { count, error } = await supabase
+    const { data, count, error } = await supabase
       .from("items")
-      .select("*", { count: "exact", head: true });
+      .select("*", { count: "exact" })
+      .limit(5);
+    void data;
     if (error) {
       const parts = [
         error.code ? `[${error.code}]` : "",
