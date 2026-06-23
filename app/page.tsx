@@ -25,12 +25,13 @@ async function getDbStatus(): Promise<DbStatus> {
       .from("items")
       .select("*", { count: "exact", head: true });
     if (error) {
-      return {
-        ok: false,
-        count: null,
-        detail: `${error.message}${error.hint ? ` (hint: ${error.hint})` : ""}`,
-        env,
-      };
+      const parts = [
+        error.code ? `[${error.code}]` : "",
+        error.message || "(no message)",
+        error.hint ? `— hint: ${error.hint}` : "",
+        error.details ? `— ${error.details}` : "",
+      ].filter(Boolean);
+      return { ok: false, count: null, detail: parts.join(" "), env };
     }
     return { ok: true, count: count ?? 0, detail: "Connected to invtt schema", env };
   } catch (e) {
@@ -96,7 +97,9 @@ export default async function Home() {
               <span>SUPABASE_SERVICE_ROLE_KEY</span>
               <strong className={db.env.service ? "yes" : "no"}>{db.env.service ? "set" : "missing"}</strong>
             </div>
-            <p className="diag-detail">{db.detail}</p>
+            <p className="diag-detail">
+              {db.detail && db.detail.trim() ? db.detail : "Connected to Supabase, but no error message was returned. Check that the migration ran and the invtt schema is exposed."}
+            </p>
           </div>
         )}
       </section>
