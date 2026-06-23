@@ -123,3 +123,44 @@ p {
   color: var(--fg);
   font-weight: 600;
 }
+
+.db {
+  margin-top: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.db-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.db-ok {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.08);
+  border-color: rgba(52, 211, 153, 0.25);
+}
+
+.db-ok .db-dot {
+  background: #34d399;
+}
+
+.db-off {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.25);
+}
+
+.db-off .db-dot {
+  background: #fbbf24;
+}
+
+.db strong {
+  font-weight: 600;
+}
