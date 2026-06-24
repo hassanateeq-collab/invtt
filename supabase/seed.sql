@@ -9,6 +9,7 @@ truncate table
   invtt.requests,
   invtt.stock_movements,
   invtt.items,
+  invtt.products,
   invtt.suppliers,
   invtt.properties
 restart identity cascade;
@@ -34,11 +35,13 @@ begin
   select id into p_dha from invtt.properties where code='DHA';
 
   ------------------------------------------------------------------- suppliers
-  insert into invtt.suppliers(name, contact, lead_time_days) values
-    ('Green Valley Produce','orders@greenvalley.example', 1),
-    ('Metro Dry Goods',     'sales@metrodry.example',     3),
-    ('Coastal Dairy',       'hello@coastaldairy.example', 1),
-    ('CleanPro Supplies',   'support@cleanpro.example',   5);
+  -- delivery_mode/email/phone exist after migration 0003. Phones are
+  -- placeholders — edit them per supplier later.
+  insert into invtt.suppliers(name, contact, lead_time_days, delivery_mode, email, phone) values
+    ('Green Valley Produce','orders@greenvalley.example', 1, 'central', 'orders@greenvalley.example', '923000000001'),
+    ('Metro Dry Goods',     'sales@metrodry.example',     3, 'central', 'sales@metrodry.example',     '923000000002'),
+    ('Coastal Dairy',       'hello@coastaldairy.example', 1, 'central', 'hello@coastaldairy.example', '923000000003'),
+    ('CleanPro Supplies',   'support@cleanpro.example',   5, 'direct',  'support@cleanpro.example',   '923000000004');
   select id into s_fresh from invtt.suppliers where name='Green Valley Produce';
   select id into s_dry   from invtt.suppliers where name='Metro Dry Goods';
   select id into s_dairy from invtt.suppliers where name='Coastal Dairy';
@@ -193,4 +196,18 @@ begin
   insert into invtt.requests(property_id,item_id,quantity,department,status,source)
   select p_dha, id, 4, 'Housekeeping', 'pending', 'portal'
     from invtt.items where property_id=p_dha and name='Bleach';
+
+  ------------------------------------------------- hub + product catalog links
+  -- (these columns/tables come from migration 0003; run 0003 before this seed)
+  update invtt.properties set is_hub = (code = 'FSL');
+
+  insert into invtt.products(name, unit, type)
+    select distinct name, unit, type from invtt.items
+  on conflict (name, unit, type) do nothing;
+
+  update invtt.items i
+     set product_id = p.id
+    from invtt.products p
+   where i.product_id is null
+     and p.name = i.name and p.unit = i.unit and p.type = i.type;
 end $$;

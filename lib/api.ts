@@ -1,6 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
-import type { ItemStock, MovementRow, Property, RequestRow } from "./types";
+import type { ItemStock, MovementRow, Property, RequestRow, Supplier } from "./types";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -9,9 +9,24 @@ const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function fetchProperties(): Promise<Property[]> {
   const { data, error } = await supabase
-    .from("properties").select("id, code, name").order("created_at");
+    .from("properties").select("id, code, name, is_hub").order("created_at");
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return (data ?? []) as Property[];
+}
+
+export async function fetchSuppliers(): Promise<Supplier[]> {
+  const { data, error } = await supabase
+    .from("suppliers").select("id, name, contact, email, phone, lead_time_days, delivery_mode").order("name");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Supplier[];
+}
+
+// All items across every branch — used by the Suppliers view to consolidate
+// orders by product. (One item per item-row; same product appears once per branch.)
+export async function fetchAllItems(): Promise<ItemStock[]> {
+  const { data, error } = await supabase.from("v_item_stock").select("*");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ItemStock[];
 }
 
 export async function fetchItems(propertyId: string): Promise<ItemStock[]> {
@@ -21,11 +36,12 @@ export async function fetchItems(propertyId: string): Promise<ItemStock[]> {
   return (data ?? []) as ItemStock[];
 }
 
-export async function fetchPendingRequests(propertyId: string): Promise<RequestRow[]> {
+// All pending requests with item + requesting-branch info. The page decides
+// which to show in the inbox based on the current branch / hub status.
+export async function fetchRequests(): Promise<RequestRow[]> {
   const { data, error } = await supabase
     .from("requests")
-    .select("*, items(name, unit)")
-    .eq("property_id", propertyId)
+    .select("*, items(name, unit), properties(code, name)")
     .eq("status", "pending")
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -48,11 +64,7 @@ export async function fetchMovements(propertyId: string): Promise<MovementRow[]>
 async function callFn(name: string, body: Record<string, unknown>) {
   const res = await fetch(`${URL}/functions/v1/${name}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${ANON}`,
-      apikey: ANON,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANON}`, apikey: ANON },
     body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
@@ -69,5 +81,13 @@ export const issueStock = (item_id: string, quantity: number, reason: string) =>
 export const adjustStock = (item_id: string, quantity: number, reason: string) =>
   callFn("adjust-stock", { item_id, quantity, reason });
 
+export const transferStock = (from_item_id: string, to_property_id: string, quantity: number, reason?: string) =>
+  callFn("transfer-stock", { from_item_id, to_property_id, quantity, reason });
+
 export const fulfilRequest = (request_id: string) =>
   callFn("fulfil-request", { request_id });
+
+export const createRequest = (
+  property_id: string, item_id: string, quantity: number, department: string,
+  request_type: "department" | "branch_transfer" = "department",
+) => callFn("create-request", { property_id, item_id, quantity, department, source: "portal", request_type });

@@ -71,7 +71,8 @@ Run the migration and seed against your Supabase project. Either paste them into
 the **SQL Editor** (Dashboard → SQL Editor → New query) in this order:
 
 1. `supabase/migrations/0002_supply_chain.sql`
-2. `supabase/seed.sql`  *(optional demo data; safe to re-run)*
+2. `supabase/migrations/0003_hub_products_transfers.sql` *(hub-and-spoke, product catalog, transfers, supplier routing — additive, safe on live data)*
+3. `supabase/seed.sql`  *(optional demo data; safe to re-run — run it **after** 0003)*
 
 …or use the Supabase CLI:
 
@@ -94,15 +95,15 @@ Each function in `supabase/functions/<name>/index.ts` is **self-contained**
 **A. Browser — no install (recommended).** Supabase Dashboard → **Edge
 Functions** → **Deploy a new function** → **Via Editor**. Name it exactly
 (`receive-stock`, `issue-stock`, `adjust-stock`, `create-request`,
-`fulfil-request`), paste the matching `index.ts`, click **Deploy**. Repeat for
-all five.
+`fulfil-request`, `transfer-stock`), paste the matching `index.ts`, click
+**Deploy**. Repeat for all six.
 
 **B. CLI.** From a terminal in the project folder:
 
 ```bash
 supabase login
 supabase link --project-ref <your-project-ref>
-supabase functions deploy receive-stock issue-stock adjust-stock create-request fulfil-request
+supabase functions deploy receive-stock issue-stock adjust-stock create-request fulfil-request transfer-stock
 ```
 
 Either way, functions automatically receive `SUPABASE_URL`, `SUPABASE_ANON_KEY`
@@ -137,7 +138,8 @@ refreshed `v_item_stock` row.
 | `issue-stock` | `{ item_id, quantity, reason?\|department? }` | `out` movement; rejects over-issue |
 | `adjust-stock` | `{ item_id, quantity (signed), reason }` | `adjustment` movement |
 | `create-request` | `{ property_id, item_id, quantity, department, source? }` | pending request |
-| `fulfil-request` | `{ request_id }` | `out` movement + marks request done (idempotent) |
+| `fulfil-request` | `{ request_id }` | department request → `out`; branch request → transfer; marks done (idempotent) |
+| `transfer-stock` | `{ from_item_id, to_property_id, quantity, reason? }` | hub → branch transfer (linked transfer_out + transfer_in) |
 
 Example:
 

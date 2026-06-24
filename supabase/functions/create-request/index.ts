@@ -1,6 +1,8 @@
-// create-request — drop a pending department request into the portal inbox.
-// Body: { property_id, item_id, quantity, department, source?: 'slack'|'portal' }
-// This is the function Slack calls.
+// create-request — drop a pending request into the keeper's inbox.
+// Body: { property_id, item_id, quantity, department, source?: 'slack'|'portal',
+//         request_type?: 'department'|'branch_transfer' }
+// 'department'      = a department wants to consume stock (Slack calls this)
+// 'branch_transfer' = a branch is asking the hub to send it stock
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const cors = {
@@ -26,6 +28,7 @@ Deno.serve(async (req) => {
   const quantity = Number(body.quantity);
   const department = body.department ? String(body.department) : "";
   const source = body.source === "slack" ? "slack" : "portal";
+  const request_type = body.request_type === "branch_transfer" ? "branch_transfer" : "department";
 
   if (!property_id) return bad("property_id is required");
   if (!item_id) return bad("item_id is required");
@@ -38,7 +41,7 @@ Deno.serve(async (req) => {
   if (item.property_id !== property_id) return bad("Item does not belong to that property");
 
   const { data, error } = await c.from("requests").insert({
-    property_id, item_id, quantity, department, source, status: "pending",
+    property_id, item_id, quantity, department, source, request_type, status: "pending",
   }).select("*").single();
   if (error) return bad(error.message, 500);
 
