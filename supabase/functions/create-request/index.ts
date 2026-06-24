@@ -1,14 +1,26 @@
 // create-request — drop a pending department request into the portal inbox.
 // Body: { property_id, item_id, quantity, department, source?: 'slack'|'portal' }
-// This is the function Slack calls. Kept deliberately simple so a richer Slack
-// experience can be layered on later without changing the core.
-import { admin, bad, corsHeaders, json, readBody } from "../_shared/utils.ts";
+// This is the function Slack calls.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+const db = () =>
+  createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    db: { schema: "invtt" }, auth: { persistSession: false },
+  });
+const json = (b: unknown, s = 200) =>
+  new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
+const bad = (m: string, s = 400) => json({ error: m }, s);
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return bad("Method not allowed", 405);
 
-  const body = await readBody(req);
+  const body = await req.json().catch(() => ({}));
   const property_id = String(body.property_id ?? "");
   const item_id = String(body.item_id ?? "");
   const quantity = Number(body.quantity);
@@ -20,21 +32,13 @@ Deno.serve(async (req) => {
   if (!Number.isFinite(quantity) || quantity <= 0) return bad("quantity must be a positive number");
   if (!department) return bad("department is required");
 
-  const db = admin();
-
-  // Validate the item exists and belongs to the named property.
-  const { data: item, error: itemErr } = await db
-    .from("items").select("id, property_id, name").eq("id", item_id).single();
+  const c = db();
+  const { data: item, error: itemErr } = await c.from("items").select("id, property_id").eq("id", item_id).single();
   if (itemErr || !item) return bad("Item not found", 404);
   if (item.property_id !== property_id) return bad("Item does not belong to that property");
 
-  const { data, error } = await db.from("requests").insert({
-    property_id,
-    item_id,
-    quantity,
-    department,
-    source,
-    status: "pending",
+  const { data, error } = await c.from("requests").insert({
+    property_id, item_id, quantity, department, source, status: "pending",
   }).select("*").single();
   if (error) return bad(error.message, 500);
 

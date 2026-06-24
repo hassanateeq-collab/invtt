@@ -1,13 +1,26 @@
 // receive-stock — record an incoming delivery as an 'in' movement.
 // Body: { item_id, quantity, reason?, expiry?: 'YYYY-MM-DD' }
-// expiry is only stored for fresh items (it belongs to the delivery batch).
-import { admin, bad, corsHeaders, itemStock, json, readBody, staffId } from "../_shared/utils.ts";
+// Self-contained so it can be pasted straight into the Supabase dashboard editor.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+const db = () =>
+  createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    db: { schema: "invtt" }, auth: { persistSession: false },
+  });
+const json = (b: unknown, s = 200) =>
+  new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
+const bad = (m: string, s = 400) => json({ error: m }, s);
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return bad("Method not allowed", 405);
 
-  const body = await readBody(req);
+  const body = await req.json().catch(() => ({}));
   const item_id = String(body.item_id ?? "");
   const quantity = Number(body.quantity);
   const reason = body.reason ? String(body.reason) : null;
@@ -16,23 +29,16 @@ Deno.serve(async (req) => {
   if (!item_id) return bad("item_id is required");
   if (!Number.isFinite(quantity) || quantity <= 0) return bad("quantity must be a positive number");
 
-  const db = admin();
-  const { data: item, error: itemErr } = await db
-    .from("items").select("id, type").eq("id", item_id).single();
+  const c = db();
+  const { data: item, error: itemErr } = await c.from("items").select("id, type").eq("id", item_id).single();
   if (itemErr || !item) return bad("Item not found", 404);
 
-  // Expiry only applies to fresh items.
-  const expiry_date = item.type === "fresh" ? expiry : null;
-
-  const { error } = await db.from("stock_movements").insert({
-    item_id,
-    type: "in",
-    quantity,
-    reason,
-    expiry_date,
-    staff_id: await staffId(req),
+  const { error } = await c.from("stock_movements").insert({
+    item_id, type: "in", quantity, reason,
+    expiry_date: item.type === "fresh" ? expiry : null, // expiry only for fresh
   });
   if (error) return bad(error.message, 500);
 
-  return json({ ok: true, item: await itemStock(db, item_id) });
+  const { data: updated } = await c.from("v_item_stock").select("*").eq("id", item_id).single();
+  return json({ ok: true, item: updated });
 });

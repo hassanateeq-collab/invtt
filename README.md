@@ -88,12 +88,25 @@ Dashboard → **Settings → API → Exposed schemas** → add **`invtt`** → S
 
 ### 3. Deploy the Edge Functions
 
+Each function in `supabase/functions/<name>/index.ts` is **self-contained**
+(no shared imports), so you can deploy two ways:
+
+**A. Browser — no install (recommended).** Supabase Dashboard → **Edge
+Functions** → **Deploy a new function** → **Via Editor**. Name it exactly
+(`receive-stock`, `issue-stock`, `adjust-stock`, `create-request`,
+`fulfil-request`), paste the matching `index.ts`, click **Deploy**. Repeat for
+all five.
+
+**B. CLI.** From a terminal in the project folder:
+
 ```bash
+supabase login
+supabase link --project-ref <your-project-ref>
 supabase functions deploy receive-stock issue-stock adjust-stock create-request fulfil-request
 ```
 
-Functions automatically receive `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
-`SUPABASE_SERVICE_ROLE_KEY` from the platform — no manual secrets needed.
+Either way, functions automatically receive `SUPABASE_URL`, `SUPABASE_ANON_KEY`
+and `SUPABASE_SERVICE_ROLE_KEY` from the platform — no manual secrets needed.
 
 ### 4. Frontend env vars
 
