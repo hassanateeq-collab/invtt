@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
-  Boxes, Truck, ArrowLeftRight, Send, Pencil,
+  Boxes, Truck, ArrowLeftRight, Send,
 } from "lucide-react";
 import type { ItemStock, MovementRow, Property, RequestRow, StockStatus, Supplier } from "@/lib/types";
 import {
@@ -10,7 +10,6 @@ import {
 } from "@/lib/api";
 import { expiryBadge, statusBadgeCls, statusLabel, stockTextCls } from "@/lib/format";
 import { ActionModal } from "@/components/Modals";
-import { EditItemModal } from "@/components/EditItemModal";
 import { TransferModal, RequestModal } from "@/components/HubModals";
 import { Diary } from "@/components/Diary";
 import { SuppliersView } from "@/components/SuppliersView";
@@ -36,7 +35,6 @@ export default function Page() {
   const [query, setQuery] = useState("");
 
   const [modal, setModal] = useState<Modal>(null);
-  const [editItem, setEditItem] = useState<ItemStock | null>(null);
   const [hubModal, setHubModal] = useState<HubModal>(null);
   const [diaryOpen, setDiaryOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -67,7 +65,7 @@ export default function Page() {
   }, [propId]);
 
   function flash(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3200); }
-  async function afterWrite(msg: string) { setModal(null); setHubModal(null); setEditItem(null); flash(msg); await refresh().catch(() => {}); }
+  async function afterWrite(msg: string) { setModal(null); setHubModal(null); flash(msg); await refresh().catch(() => {}); }
 
   const branch = properties.find((p) => p.id === propId);
   const isHub = !!branch?.is_hub;
@@ -298,7 +296,6 @@ export default function Page() {
                           <button onClick={() => setHubModal({ item: i, kind: "request" })} className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 ring-1 ring-teal-200 hover:bg-teal-100"><Send size={13} /> Request</button>
                         )}
                         <button onClick={() => setModal({ item: i, kind: "adjust" })} className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-stone-500 ring-1 ring-stone-300 hover:bg-stone-50">Adjust</button>
-                        <button onClick={() => setEditItem(i)} title="Edit item settings" className="inline-flex items-center rounded-lg px-2 py-1.5 text-stone-400 ring-1 ring-stone-300 hover:bg-stone-50 hover:text-stone-600"><Pencil size={13} /></button>
                       </div>
                     </div>
                   );
@@ -313,7 +310,6 @@ export default function Page() {
       </div>
 
       {modal && <ActionModal item={modal.item} kind={modal.kind} onClose={() => setModal(null)} onDone={afterWrite} />}
-      {editItem && <EditItemModal item={editItem} suppliers={suppliers} onClose={() => setEditItem(null)} onDone={afterWrite} />}
       {hubModal?.kind === "transfer" && <TransferModal item={hubModal.item} branches={properties} onClose={() => setHubModal(null)} onDone={afterWrite} />}
       {hubModal?.kind === "request" && <RequestModal item={hubModal.item} branchName={branch?.name ?? ""} onClose={() => setHubModal(null)} onDone={afterWrite} />}
       {diaryOpen && <Diary branchName={branch ? `${branch.code} · ${branch.name}` : ""} movements={movements} properties={properties} onClose={() => setDiaryOpen(false)} />}
