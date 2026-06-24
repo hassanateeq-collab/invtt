@@ -1,0 +1,24 @@
+# Supabase project config. The project ref is set when you run `supabase link`.
+project_id = "invtt"
+
+[api]
+# Schemas exposed through the auto-generated REST API. `invtt` must be here
+# (this mirrors the dashboard's Settings → API → Exposed schemas).
+schemas = ["public", "graphql_public", "invtt"]
+extra_search_path = ["public", "extensions"]
+
+# ---------------------------------------------------------------------------
+# Edge Functions. verify_jwt = false for the MVP because auth is not enabled
+# yet. When you turn on Supabase Auth, flip these to true (and keep
+# create-request guarded by a Slack signing secret instead).
+# ---------------------------------------------------------------------------
+[functions.receive-stock]
+verify_jwt = false
+[functions.issue-stock]
+verify_jwt = false
+[functions.adjust-stock]
+verify_jwt = false
+[functions.create-request]
+verify_jwt = false
+[functions.fulfil-request]
+verify_jwt = false
