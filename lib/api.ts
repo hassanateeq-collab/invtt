@@ -87,6 +87,18 @@ export const transferStock = (from_item_id: string, to_property_id: string, quan
 export const fulfilRequest = (request_id: string) =>
   callFn("fulfil-request", { request_id });
 
+export interface ItemPatch {
+  name?: string;
+  unit?: string;
+  type?: "fresh" | "store";
+  par_level?: number;
+  reorder_point?: number;
+  supplier_id?: string | null;
+  delivery_override?: "central" | "direct" | null;
+}
+export const updateItem = (item_id: string, patch: ItemPatch) =>
+  callFn("update-item", { item_id, ...patch });
+
 export const createRequest = (
   property_id: string, item_id: string, quantity: number, department: string,
   request_type: "department" | "branch_transfer" = "department",
