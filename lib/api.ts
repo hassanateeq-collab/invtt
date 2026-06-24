@@ -99,6 +99,18 @@ export interface ItemPatch {
 export const updateItem = (item_id: string, patch: ItemPatch) =>
   callFn("update-item", { item_id, ...patch });
 
+export interface SupplierInput {
+  id?: string;
+  name: string;
+  contact?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  lead_time_days?: number;
+  delivery_mode?: "central" | "direct";
+}
+export const upsertSupplier = (s: SupplierInput) => callFn("upsert-supplier", s as unknown as Record<string, unknown>);
+export const deleteSupplier = (id: string) => callFn("delete-supplier", { id });
+
 export const createRequest = (
   property_id: string, item_id: string, quantity: number, department: string,
   request_type: "department" | "branch_transfer" = "department",

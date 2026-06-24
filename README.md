@@ -95,15 +95,16 @@ Each function in `supabase/functions/<name>/index.ts` is **self-contained**
 **A. Browser — no install (recommended).** Supabase Dashboard → **Edge
 Functions** → **Deploy a new function** → **Via Editor**. Name it exactly
 (`receive-stock`, `issue-stock`, `adjust-stock`, `create-request`,
-`fulfil-request`, `transfer-stock`, `update-item`), paste the matching
-`index.ts`, click **Deploy**. Repeat for all seven.
+`fulfil-request`, `transfer-stock`, `update-item`, `upsert-supplier`,
+`delete-supplier`), paste the matching `index.ts`, click **Deploy**. Repeat for
+all nine.
 
 **B. CLI.** From a terminal in the project folder:
 
 ```bash
 supabase login
 supabase link --project-ref <your-project-ref>
-supabase functions deploy receive-stock issue-stock adjust-stock create-request fulfil-request transfer-stock update-item
+supabase functions deploy receive-stock issue-stock adjust-stock create-request fulfil-request transfer-stock update-item upsert-supplier delete-supplier
 ```
 
 Either way, functions automatically receive `SUPABASE_URL`, `SUPABASE_ANON_KEY`
@@ -141,6 +142,8 @@ refreshed `v_item_stock` row.
 | `fulfil-request` | `{ request_id }` | department request → `out`; branch request → transfer; marks done (idempotent) |
 | `transfer-stock` | `{ from_item_id, to_property_id, quantity, reason? }` | hub → branch transfer (linked transfer_out + transfer_in) |
 | `update-item` | `{ item_id, name?, unit?, type?, par_level?, reorder_point?, supplier_id?, delivery_override? }` | edit item settings (never stock) |
+| `upsert-supplier` | `{ id?, name, contact?, email?, phone?, lead_time_days?, delivery_mode? }` | create or update a supplier |
+| `delete-supplier` | `{ id }` | delete a supplier (linked items keep stock; supplier_id set null) |
 
 Example:
 

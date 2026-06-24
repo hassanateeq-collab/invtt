@@ -1,13 +1,13 @@
 "use client";
 import { useMemo, useState } from "react";
-import { MessageCircle, FileDown, Truck, PackageX, X, RotateCcw } from "lucide-react";
+import { MessageCircle, FileDown, Truck, PackageX, X, RotateCcw, Plus, Pencil, Trash2 } from "lucide-react";
 import jsPDF from "jspdf";
 import type { ItemStock, Property, Supplier } from "@/lib/types";
+import { deleteSupplier } from "@/lib/api";
+import { SupplierModal } from "./SupplierModal";
 
 interface Line { key: string; label: string; qty: number; unit: string; dest: string; kind: "central" | "direct" }
 
-// Build the suggested order lines for a supplier: central items summed by
-// product (→ hub), direct items per branch.
 function buildLines(supplier: Supplier, items: ItemStock[], hub: Property | undefined): Line[] {
   const mine = items.filter((i) => i.supplier_id === supplier.id && i.buy_qty > 0);
   const central = new Map<string, Line>();
@@ -43,26 +43,19 @@ function buildText(supplier: Supplier, lines: Line[], hub: Property | undefined,
   return out.join("\n");
 }
 
-function SupplierCard({ supplier, items, hub, codeOf }: {
+function SupplierCard({ supplier, items, hub, codeOf, onEdit, onDelete }: {
   supplier: Supplier; items: ItemStock[]; hub: Property | undefined; codeOf: (id: string) => string;
+  onEdit: () => void; onDelete: () => void;
 }) {
   const base = useMemo(() => buildLines(supplier, items, hub), [supplier, items, hub]);
-  // Per-line edits for THIS order only (does not change stock or item settings).
   const [edits, setEdits] = useState<Record<string, { qty?: number; removed?: boolean }>>({});
 
-  const lines: (Line & { removed: boolean })[] = base.map((l) => ({
-    ...l,
-    qty: edits[l.key]?.qty ?? l.qty,
-    removed: edits[l.key]?.removed ?? false,
-  }));
+  const lines = base.map((l) => ({ ...l, qty: edits[l.key]?.qty ?? l.qty, removed: edits[l.key]?.removed ?? false }));
   const active = lines.filter((l) => !l.removed && l.qty > 0);
   const edited = Object.keys(edits).length > 0;
 
-  const setQty = (key: string, v: string) =>
-    setEdits((e) => ({ ...e, [key]: { ...e[key], qty: Math.max(0, Number(v) || 0) } }));
-  const toggleRemove = (key: string, removed: boolean) =>
-    setEdits((e) => ({ ...e, [key]: { ...e[key], removed } }));
-  const reset = () => setEdits({});
+  const setQty = (k: string, v: string) => setEdits((e) => ({ ...e, [k]: { ...e[k], qty: Math.max(0, Number(v) || 0) } }));
+  const toggleRemove = (k: string, removed: boolean) => setEdits((e) => ({ ...e, [k]: { ...e[k], removed } }));
 
   const text = buildText(supplier, active, hub, codeOf);
   const wa = supplier.phone ? `https://wa.me/${supplier.phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}` : null;
@@ -98,72 +91,88 @@ function SupplierCard({ supplier, items, hub, codeOf }: {
             {supplier.email ? ` · ${supplier.email}` : ""}{supplier.phone ? ` · ${supplier.phone}` : ""}
           </p>
         </div>
-        <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${supplier.delivery_mode === "central" ? "bg-teal-50 text-teal-700" : "bg-stone-100 text-stone-600"}`}>
-          {supplier.delivery_mode === "central" ? "→ hub" : "→ direct"}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${supplier.delivery_mode === "central" ? "bg-teal-50 text-teal-700" : "bg-stone-100 text-stone-600"}`}>
+            {supplier.delivery_mode === "central" ? "→ hub" : "→ direct"}
+          </span>
+          <button onClick={onEdit} title="Edit supplier" className="rounded-lg p-1.5 text-stone-400 ring-1 ring-stone-300 hover:bg-stone-50 hover:text-stone-600"><Pencil size={14} /></button>
+          <button onClick={onDelete} title="Delete supplier" className="rounded-lg p-1.5 text-stone-400 ring-1 ring-stone-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+        </div>
       </div>
 
-      <p className="mt-3 flex items-center justify-between border-t border-stone-100 pt-3 text-xs text-stone-400">
-        <span>Review &amp; adjust before sending — changes here affect only this order, not your stock.</span>
-        {edited && <button onClick={reset} className="inline-flex items-center gap-1 text-stone-500 hover:text-stone-700"><RotateCcw size={12} /> reset</button>}
-      </p>
-
-      <div className="mt-2 space-y-1">
-        {lines.map((l) => (
-          <div key={l.key} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${l.removed ? "opacity-40" : "hover:bg-stone-50"}`}>
-            <span className="min-w-0 flex-1 truncate text-stone-700">{l.label}</span>
-            <input
-              type="number" min="0" value={l.qty} disabled={l.removed}
-              onChange={(e) => setQty(l.key, e.target.value)}
-              className="tnum w-16 rounded-lg border border-stone-300 px-2 py-1 text-right text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-stone-100" />
-            <span className="w-10 text-xs text-stone-400">{l.unit}</span>
-            <span className={`w-24 text-right text-xs ${l.kind === "central" ? "text-teal-700" : "text-amber-600"}`}>
-              → {codeOf(l.dest)}{l.kind === "direct" ? " (direct)" : ""}
-            </span>
-            {l.removed ? (
-              <button onClick={() => toggleRemove(l.key, false)} className="rounded p-1 text-xs text-teal-700 hover:bg-teal-50">add</button>
-            ) : (
-              <button onClick={() => toggleRemove(l.key, true)} title="Remove from order" className="rounded p-1 text-stone-300 hover:bg-stone-100 hover:text-stone-500"><X size={14} /></button>
-            )}
+      {base.length === 0 ? (
+        <p className="mt-3 border-t border-stone-100 pt-3 text-sm text-stone-400">Nothing to reorder from this supplier right now.</p>
+      ) : (
+        <>
+          <p className="mt-3 flex items-center justify-between border-t border-stone-100 pt-3 text-xs text-stone-400">
+            <span>Review &amp; adjust before sending — changes here affect only this order, not your stock.</span>
+            {edited && <button onClick={() => setEdits({})} className="inline-flex items-center gap-1 text-stone-500 hover:text-stone-700"><RotateCcw size={12} /> reset</button>}
+          </p>
+          <div className="mt-2 space-y-1">
+            {lines.map((l) => (
+              <div key={l.key} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${l.removed ? "opacity-40" : "hover:bg-stone-50"}`}>
+                <span className="min-w-0 flex-1 truncate text-stone-700">{l.label}</span>
+                <input type="number" min="0" value={l.qty} disabled={l.removed} onChange={(e) => setQty(l.key, e.target.value)}
+                  className="tnum w-16 rounded-lg border border-stone-300 px-2 py-1 text-right text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-stone-100" />
+                <span className="w-10 text-xs text-stone-400">{l.unit}</span>
+                <span className={`w-24 text-right text-xs ${l.kind === "central" ? "text-teal-700" : "text-amber-600"}`}>→ {codeOf(l.dest)}{l.kind === "direct" ? " (direct)" : ""}</span>
+                {l.removed
+                  ? <button onClick={() => toggleRemove(l.key, false)} className="rounded p-1 text-xs text-teal-700 hover:bg-teal-50">add</button>
+                  : <button onClick={() => toggleRemove(l.key, true)} title="Remove from order" className="rounded p-1 text-stone-300 hover:bg-stone-100 hover:text-stone-500"><X size={14} /></button>}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        {wa && active.length ? (
-          <a href={wa} target="_blank" rel="noreferrer"
-             className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-            <MessageCircle size={15} /> Share on WhatsApp
-          </a>
-        ) : !supplier.phone ? (
-          <span className="inline-flex items-center gap-1.5 rounded-xl bg-stone-100 px-3 py-2 text-sm text-stone-400"><PackageX size={15} /> No phone on file</span>
-        ) : null}
-        <button onClick={downloadPdf} disabled={!active.length}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50">
-          <FileDown size={15} /> Download PDF
-        </button>
-      </div>
+          <div className="mt-4 flex gap-2">
+            {wa && active.length ? (
+              <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"><MessageCircle size={15} /> Share on WhatsApp</a>
+            ) : !supplier.phone ? (
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-stone-100 px-3 py-2 text-sm text-stone-400"><PackageX size={15} /> No phone on file</span>
+            ) : null}
+            <button onClick={downloadPdf} disabled={!active.length} className="inline-flex items-center gap-1.5 rounded-xl border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50"><FileDown size={15} /> Download PDF</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-export function SuppliersView({ suppliers, items, properties }: {
-  suppliers: Supplier[]; items: ItemStock[]; properties: Property[];
+export function SuppliersView({ suppliers, items, properties, onChanged }: {
+  suppliers: Supplier[]; items: ItemStock[]; properties: Property[]; onChanged: (msg: string) => void;
 }) {
   const hub = properties.find((p) => p.is_hub);
   const codeOf = (id: string) => properties.find((p) => p.id === id)?.code ?? "?";
-  const withOrders = suppliers.filter((s) => buildLines(s, items, hub).length > 0);
+  const [modal, setModal] = useState<Supplier | "new" | null>(null);
 
-  if (!withOrders.length) {
-    return (
-      <div className="mt-5 rounded-2xl border border-stone-200 bg-white px-4 py-12 text-center text-sm text-stone-400">
-        Nothing to reorder right now — every supplier is covered. 🎉
-      </div>
-    );
+  async function remove(s: Supplier) {
+    if (!confirm(`Delete supplier “${s.name}”? Items linked to it keep their stock; they just lose the supplier link.`)) return;
+    try { await deleteSupplier(s.id); onChanged(`Deleted ${s.name}`); }
+    catch (e) { alert(e instanceof Error ? e.message : "Could not delete"); }
   }
+
   return (
-    <div className="mt-5 space-y-4">
-      {withOrders.map((s) => <SupplierCard key={s.id} supplier={s} items={items} hub={hub} codeOf={codeOf} />)}
+    <div className="mt-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-stone-700">Suppliers</h2>
+        <button onClick={() => setModal("new")} className="inline-flex items-center gap-1.5 rounded-xl bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800">
+          <Plus size={15} /> Add supplier
+        </button>
+      </div>
+
+      {suppliers.length === 0 ? (
+        <div className="rounded-2xl border border-stone-200 bg-white px-4 py-12 text-center text-sm text-stone-400">No suppliers yet — add your first one.</div>
+      ) : (
+        <div className="space-y-4">
+          {suppliers.map((s) => (
+            <SupplierCard key={s.id} supplier={s} items={items} hub={hub} codeOf={codeOf}
+              onEdit={() => setModal(s)} onDelete={() => remove(s)} />
+          ))}
+        </div>
+      )}
+
+      {modal !== null && (
+        <SupplierModal supplier={modal === "new" ? null : modal} onClose={() => setModal(null)}
+          onDone={(msg) => { setModal(null); onChanged(msg); }} />
+      )}
     </div>
   );
 }

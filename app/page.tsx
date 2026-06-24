@@ -166,7 +166,8 @@ export default function Page() {
         )}
 
         {view === "suppliers" ? (
-          <SuppliersView suppliers={suppliers} items={allItems} properties={properties} />
+          <SuppliersView suppliers={suppliers} items={allItems} properties={properties}
+            onChanged={async (msg) => { flash(msg); try { setSuppliers(await fetchSuppliers()); } catch {} }} />
         ) : (
           <>
             {/* dashboard */}
