@@ -24,10 +24,10 @@ declare
 begin
   ------------------------------------------------------------------ properties
   insert into invtt.properties(code, name) values
-    ('FSL','Faisal Court'),
-    ('EXT','The Exchange'),
-    ('CLF','Clifton Bay'),
-    ('DHA','DHA Boulevard');
+    ('FSL','Sharah e Faisal'),
+    ('EXT','Sharah e Faisal Extension'),
+    ('CLF','Clifton'),
+    ('DHA','DHA');
   select id into p_fsl from invtt.properties where code='FSL';
   select id into p_ext from invtt.properties where code='EXT';
   select id into p_clf from invtt.properties where code='CLF';
