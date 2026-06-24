@@ -1,204 +1,22 @@
-:root {
-  --bg: #0b0f17;
-  --bg-glow: #1a2233;
-  --card: rgba(255, 255, 255, 0.04);
-  --border: rgba(255, 255, 255, 0.08);
-  --fg: #f5f7fa;
-  --muted: #8b93a7;
-  --accent: #6366f1;
-  --accent-2: #22d3ee;
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 html,
 body {
-  height: 100%;
+  background-color: #f5f5f4; /* warm stone */
 }
 
-body {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
-  color: var(--fg);
-  background:
-    radial-gradient(1200px 600px at 80% -10%, var(--bg-glow), transparent 60%),
-    radial-gradient(900px 500px at 10% 110%, #15203a, transparent 55%),
-    var(--bg);
-  -webkit-font-smoothing: antialiased;
+/* Quantity columns line up with tabular figures */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
-.wrap {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
+/* hide scrollbar on the branch tab strip */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
-
-.card {
-  width: 100%;
-  max-width: 560px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 48px 40px;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.6);
-  text-align: center;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.1);
-  border: 1px solid rgba(52, 211, 153, 0.25);
-  padding: 6px 14px;
-  border-radius: 999px;
-  margin-bottom: 28px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #34d399;
-  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6);
-  animation: pulse 1.8s infinite;
-}
-
-@keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
-  }
-  70% {
-    box-shadow: 0 0 0 10px rgba(52, 211, 153, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
-  }
-}
-
-.logo {
-  font-size: 56px;
-  font-weight: 800;
-  letter-spacing: -2px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin-bottom: 12px;
-}
-
-h1 {
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 12px;
-}
-
-p {
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.6;
-  margin-bottom: 28px;
-}
-
-.meta {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  font-size: 13px;
-  color: var(--muted);
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
-}
-
-.meta strong {
-  color: var(--fg);
-  font-weight: 600;
-}
-
-.db {
-  margin-top: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 13px;
-  padding: 9px 16px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-}
-
-.db-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.db-ok {
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.08);
-  border-color: rgba(52, 211, 153, 0.25);
-}
-
-.db-ok .db-dot {
-  background: #34d399;
-}
-
-.db-off {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.08);
-  border-color: rgba(251, 191, 36, 0.25);
-}
-
-.db-off .db-dot {
-  background: #fbbf24;
-}
-
-.db strong {
-  font-weight: 600;
-}
-
-.diag {
-  margin-top: 18px;
-  text-align: left;
-  font-size: 12.5px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px 16px;
-}
-
-.diag-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--muted);
-}
-
-.diag-row .yes {
-  color: #34d399;
-}
-
-.diag-row .no {
-  color: #f87171;
-}
-
-.diag-detail {
-  margin: 10px 0 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-  color: #fbbf24;
-  font-size: 12.5px;
-  line-height: 1.5;
-  word-break: break-word;
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
