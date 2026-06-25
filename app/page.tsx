@@ -51,12 +51,15 @@ export default function Page() {
   const requestsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    Promise.all([fetchProperties(), fetchSuppliers(), fetchDepartments()])
-      .then(([p, s, d]) => {
-        setProperties(p); setSuppliers(s); setDepartments(d);
+    Promise.all([fetchProperties(), fetchSuppliers()])
+      .then(([p, s]) => {
+        setProperties(p); setSuppliers(s);
         if (p.length) setPropId(p[0].id); else setLoading(false);
       })
       .catch((e) => { setError(e.message); setLoading(false); });
+    // Departments are optional — if the table doesn't exist yet (migration not
+    // run), don't break the portal; just show "All".
+    fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
   }, []);
 
   async function reloadDepartments() { try { setDepartments(await fetchDepartments()); } catch {} }
