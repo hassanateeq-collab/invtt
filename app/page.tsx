@@ -37,6 +37,7 @@ export default function Page() {
 
   const [authReady, setAuthReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [isKeeper, setIsKeeper] = useState<boolean | null>(null);
 
   const [view, setView] = useState<"inventory" | "suppliers">("inventory");
   const [kind, setKind] = useState<Kind>("all");
@@ -62,9 +63,20 @@ export default function Page() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Load reference data once signed in.
+  // Is the signed-in user an allow-listed keeper? (own profile row visible)
   useEffect(() => {
-    if (!authed) return;
+    if (!authed) { setIsKeeper(null); return; }
+    (async () => {
+      try {
+        const { data } = await supabase.from("profiles").select("id").limit(1);
+        setIsKeeper(!!data && data.length > 0);
+      } catch { setIsKeeper(false); }
+    })();
+  }, [authed]);
+
+  // Load reference data once a keeper is signed in.
+  useEffect(() => {
+    if (!isKeeper) return;
     Promise.all([fetchProperties(), fetchSuppliers()])
       .then(([p, s]) => {
         setProperties(p); setSuppliers(s);
@@ -72,7 +84,7 @@ export default function Page() {
       })
       .catch((e) => { setError(e.message); setLoading(false); });
     fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
-  }, [authed]);
+  }, [isKeeper]);
 
   async function reloadDepartments() { try { setDepartments(await fetchDepartments()); } catch {} }
 
@@ -83,11 +95,11 @@ export default function Page() {
   }
 
   useEffect(() => {
-    if (!authed || !propId) return;
+    if (!isKeeper || !propId) return;
     setLoading(true);
     refresh(propId).catch((e) => setError(e.message)).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed, propId]);
+  }, [isKeeper, propId]);
 
   function flash(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3200); }
   async function afterWrite(msg: string) { setModal(null); setHubModal(null); setEditItem(null); setAddItemOpen(false); flash(msg); await refresh().catch(() => {}); }
@@ -146,6 +158,19 @@ export default function Page() {
 
   if (!authReady) return <div className="grid min-h-screen place-items-center text-sm text-stone-400">Loading…</div>;
   if (!authed) return <Login />;
+  if (isKeeper === null) return <div className="grid min-h-screen place-items-center text-sm text-stone-400">Loading…</div>;
+  if (isKeeper === false) {
+    return (
+      <main className="grid min-h-screen place-items-center px-4 text-center">
+        <div className="max-w-sm">
+          <h1 className="text-lg font-semibold text-stone-900">Not authorised</h1>
+          <p className="mt-2 text-sm text-stone-500">This login isn’t set up as a warehouse keeper for Hamsun Supply.</p>
+          <button onClick={() => supabase.auth.signOut()}
+            className="mt-5 rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800">Sign out</button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <div className="min-h-screen">

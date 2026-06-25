@@ -22,12 +22,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return bad("Method not allowed", 405);
 
-  // require a signed-in keeper (the public anon key returns no user → rejected)
+  // require a KEEPER: a signed-in user listed in invtt.profiles. Other Supabase
+  // logins from sibling apps, and the public anon key, are rejected.
   const _t = (req.headers.get("Authorization") ?? "").replace("Bearer ", "").trim();
-  const _auth = _t
-    ? await createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: `Bearer ${_t}` } } }).auth.getUser()
-    : { data: { user: null } };
-  if (!_auth.data.user) return bad("Sign in required", 401);
+  const _uid = _t
+    ? (await createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: `Bearer ${_t}` } } }).auth.getUser()).data.user?.id
+    : null;
+  const _keeper = _uid ? (await db().from("profiles").select("id").eq("id", _uid).maybeSingle()).data : null;
+  if (!_keeper) return bad("Not authorised", 401);
 
   const body = await req.json().catch(() => ({}));
   const source_department_id = String(body.source_department_id ?? "");
