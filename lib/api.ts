@@ -122,6 +122,8 @@ export const createItem = (item: NewItem) => callFn("create-item", item as unkno
 export const upsertDepartment = (d: { id?: string; property_id?: string; name: string; sort_order?: number }) =>
   callFn("upsert-department", d);
 export const deleteDepartment = (id: string) => callFn("delete-department", { id });
+export const copyDepartment = (source_department_id: string, target_property_id: string, target_department_name?: string) =>
+  callFn("copy-department", { source_department_id, target_property_id, target_department_name });
 
 export interface SupplierInput {
   id?: string;

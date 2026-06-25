@@ -366,7 +366,7 @@ export default function Page() {
       )}
       {deptMgrOpen && (
         <DepartmentManager propertyId={propId} branchName={branch ? `${branch.code} · ${branch.name}` : ""}
-          departments={branchDepts}
+          departments={branchDepts} branches={properties}
           onClose={() => setDeptMgrOpen(false)}
           onChanged={async (msg) => { flash(msg); await reloadDepartments(); await refresh().catch(() => {}); }} />
       )}

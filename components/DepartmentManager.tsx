@@ -1,19 +1,21 @@
 "use client";
 import { useState } from "react";
-import { X, Plus, Check, Trash2, Pencil, FolderTree } from "lucide-react";
-import type { Department } from "@/lib/types";
+import { X, Plus, Check, Trash2, Pencil, FolderTree, Copy } from "lucide-react";
+import type { Department, Property } from "@/lib/types";
 import { deleteDepartment, upsertDepartment } from "@/lib/api";
+import { CopyDepartmentModal } from "./CopyDepartmentModal";
 
 const inputCls =
   "flex-1 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 
-export function DepartmentManager({ propertyId, branchName, departments, onClose, onChanged }: {
-  propertyId: string; branchName: string; departments: Department[];
+export function DepartmentManager({ propertyId, branchName, departments, branches, onClose, onChanged }: {
+  propertyId: string; branchName: string; departments: Department[]; branches: Property[];
   onClose: () => void; onChanged: (msg: string) => void;
 }) {
   const [adding, setAdding] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [copying, setCopying] = useState<Department | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,8 +64,9 @@ export function DepartmentManager({ propertyId, branchName, departments, onClose
               ) : (
                 <>
                   <span className="flex-1 text-sm font-medium text-stone-800">{d.name}</span>
-                  <button onClick={() => { setEditingId(d.id); setEditName(d.name); }} className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"><Pencil size={14} /></button>
-                  <button onClick={() => remove(d)} className="rounded-lg p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                  <button onClick={() => setCopying(d)} title="Copy to another branch" className="rounded-lg p-1.5 text-stone-400 hover:bg-teal-50 hover:text-teal-700"><Copy size={14} /></button>
+                  <button onClick={() => { setEditingId(d.id); setEditName(d.name); }} title="Rename" className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"><Pencil size={14} /></button>
+                  <button onClick={() => remove(d)} title="Delete" className="rounded-lg p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                 </>
               )}
             </div>
@@ -80,6 +83,12 @@ export function DepartmentManager({ propertyId, branchName, departments, onClose
         </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       </div>
+
+      {copying && (
+        <CopyDepartmentModal source={copying} branches={branches}
+          onClose={() => setCopying(null)}
+          onDone={(msg) => { setCopying(null); onChanged(msg); }} />
+      )}
     </div>
   );
 }
