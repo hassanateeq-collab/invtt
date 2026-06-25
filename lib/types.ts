@@ -11,6 +11,13 @@ export interface Property {
   is_hub: boolean;
 }
 
+export interface Department {
+  id: string;
+  property_id: string;
+  name: string;
+  sort_order: number;
+}
+
 export interface Supplier {
   id: string;
   name: string;
@@ -24,6 +31,7 @@ export interface Supplier {
 export interface ItemStock {
   id: string;
   property_id: string;
+  department_id: string | null;
   supplier_id: string | null;
   product_id: string | null;
   name: string;

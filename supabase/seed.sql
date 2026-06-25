@@ -9,6 +9,7 @@ truncate table
   invtt.requests,
   invtt.stock_movements,
   invtt.items,
+  invtt.departments,
   invtt.products,
   invtt.suppliers,
   invtt.properties
@@ -210,4 +211,22 @@ begin
     from invtt.products p
    where i.product_id is null
      and p.name = i.name and p.unit = i.unit and p.type = i.type;
+
+  ------------------------------------------------- demo departments (per branch)
+  -- (departments come from migration 0004; branches deliberately differ)
+  insert into invtt.departments(property_id, name, sort_order) values
+    (p_fsl,'Guest Kitchen',1), (p_fsl,'Staff Kitchen',2), (p_fsl,'Housekeeping',3),
+    (p_ext,'Guest Kitchen',1), (p_ext,'Housekeeping',2),
+    (p_clf,'Guest Kitchen',1), (p_clf,'Housekeeping',2),
+    (p_dha,'Staff Kitchen',1), (p_dha,'Housekeeping',2);
+
+  update invtt.items i
+     set department_id = d.id
+    from invtt.departments d
+   where d.property_id = i.property_id
+     and d.name = case
+       when i.name in ('Dish Soap','Toilet Paper','Hand Towels','Bleach') then 'Housekeeping'
+       when i.name in ('Basmati Rice','Beef Mince','Yogurt','Sugar')       then 'Staff Kitchen'
+       else 'Guest Kitchen'
+     end;
 end $$;

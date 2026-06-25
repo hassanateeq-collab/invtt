@@ -2,15 +2,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
-  Boxes, Truck, ArrowLeftRight, Send, Pencil,
+  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree,
 } from "lucide-react";
-import type { ItemStock, MovementRow, Property, RequestRow, StockStatus, Supplier } from "@/lib/types";
+import type { Department, ItemStock, MovementRow, Property, RequestRow, StockStatus, Supplier } from "@/lib/types";
 import {
-  fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fulfilRequest,
+  fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments, fulfilRequest,
 } from "@/lib/api";
 import { expiryBadge, statusBadgeCls, statusLabel, stockTextCls } from "@/lib/format";
 import { ActionModal } from "@/components/Modals";
 import { EditItemModal } from "@/components/EditItemModal";
+import { AddItemModal } from "@/components/AddItemModal";
+import { DepartmentManager } from "@/components/DepartmentManager";
 import { TransferModal, RequestModal } from "@/components/HubModals";
 import { Diary } from "@/components/Diary";
 import { SuppliersView } from "@/components/SuppliersView";
@@ -24,6 +26,8 @@ export default function Page() {
   const [propId, setPropId] = useState<string>("");
   const [allItems, setAllItems] = useState<ItemStock[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [deptId, setDeptId] = useState<string>("all");
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [movements, setMovements] = useState<MovementRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +42,8 @@ export default function Page() {
   const [modal, setModal] = useState<Modal>(null);
   const [editItem, setEditItem] = useState<ItemStock | null>(null);
   const [hubModal, setHubModal] = useState<HubModal>(null);
+  const [addItemOpen, setAddItemOpen] = useState(false);
+  const [deptMgrOpen, setDeptMgrOpen] = useState(false);
   const [diaryOpen, setDiaryOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -45,13 +51,15 @@ export default function Page() {
   const requestsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    Promise.all([fetchProperties(), fetchSuppliers()])
-      .then(([p, s]) => {
-        setProperties(p); setSuppliers(s);
+    Promise.all([fetchProperties(), fetchSuppliers(), fetchDepartments()])
+      .then(([p, s, d]) => {
+        setProperties(p); setSuppliers(s); setDepartments(d);
         if (p.length) setPropId(p[0].id); else setLoading(false);
       })
       .catch((e) => { setError(e.message); setLoading(false); });
   }, []);
+
+  async function reloadDepartments() { try { setDepartments(await fetchDepartments()); } catch {} }
 
   async function refresh(id = propId) {
     if (!id) return;
@@ -67,12 +75,19 @@ export default function Page() {
   }, [propId]);
 
   function flash(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3200); }
-  async function afterWrite(msg: string) { setModal(null); setHubModal(null); setEditItem(null); flash(msg); await refresh().catch(() => {}); }
+  async function afterWrite(msg: string) { setModal(null); setHubModal(null); setEditItem(null); setAddItemOpen(false); flash(msg); await refresh().catch(() => {}); }
 
   const branch = properties.find((p) => p.id === propId);
   const isHub = !!branch?.is_hub;
 
-  const items = useMemo(() => allItems.filter((i) => i.property_id === propId), [allItems, propId]);
+  const branchDepts = useMemo(
+    () => departments.filter((d) => d.property_id === propId).sort((a, b) => a.sort_order - b.sort_order),
+    [departments, propId]);
+
+  const items = useMemo(() => {
+    const inBranch = allItems.filter((i) => i.property_id === propId);
+    return deptId === "all" ? inBranch : inBranch.filter((i) => i.department_id === deptId);
+  }, [allItems, propId, deptId]);
 
   // Inbox: department requests for this branch; branch-transfer requests show on
   // the hub (actionable) and on the requesting branch (info).
@@ -137,7 +152,7 @@ export default function Page() {
           {properties.map((p) => {
             const active = p.id === propId;
             return (
-              <button key={p.id} onClick={() => { setPropId(p.id); setStatusFilter(null); setAttention(false); }}
+              <button key={p.id} onClick={() => { setPropId(p.id); setStatusFilter(null); setAttention(false); setDeptId("all"); }}
                 className={`shrink-0 rounded-full px-4 py-2 text-sm ring-1 transition ${active ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
                 <span className="font-semibold">{p.code}</span>{" "}
                 <span className={active ? "text-teal-100" : "text-stone-400"}>{p.name}</span>
@@ -170,8 +185,32 @@ export default function Page() {
             onChanged={async (msg) => { flash(msg); try { setSuppliers(await fetchSuppliers()); } catch {} }} />
         ) : (
           <>
+            {/* department tabs */}
+            <div className="mt-4 flex items-center gap-2">
+              <div className="no-scrollbar flex flex-1 gap-2 overflow-x-auto">
+                <button onClick={() => setDeptId("all")}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-sm ring-1 ${deptId === "all" ? "bg-stone-800 text-white ring-stone-800" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+                  All
+                </button>
+                {branchDepts.map((d) => (
+                  <button key={d.id} onClick={() => setDeptId(d.id)}
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-sm ring-1 ${deptId === d.id ? "bg-stone-800 text-white ring-stone-800" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+                    {d.name}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setDeptMgrOpen(true)} title="Manage departments"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-stone-500 ring-1 ring-stone-300 hover:bg-stone-50">
+                <FolderTree size={14} /> <span className="hidden sm:inline">Departments</span>
+              </button>
+              <button onClick={() => setAddItemOpen(true)} title="Add item"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-800">
+                <PackagePlus size={14} /> <span className="hidden sm:inline">Add item</span>
+              </button>
+            </div>
+
             {/* dashboard */}
-            <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
               <Card label="Items tracked" value={counts.total} Icon={PackageCheck} tone="teal"
                     onClick={() => { setStatusFilter(null); setAttention(false); setKind("all"); }} />
               <Card label="Running low" value={counts.low} Icon={TriangleAlert} tone="amber"
@@ -314,7 +353,20 @@ export default function Page() {
       </div>
 
       {modal && <ActionModal item={modal.item} kind={modal.kind} onClose={() => setModal(null)} onDone={afterWrite} />}
-      {editItem && <EditItemModal item={editItem} suppliers={suppliers} onClose={() => setEditItem(null)} onDone={afterWrite} />}
+      {editItem && <EditItemModal item={editItem} suppliers={suppliers}
+        departments={departments.filter((d) => d.property_id === editItem.property_id)}
+        onClose={() => setEditItem(null)} onDone={afterWrite} />}
+      {addItemOpen && (
+        <AddItemModal propertyId={propId} branchName={branch ? `${branch.code} · ${branch.name}` : ""}
+          departments={branchDepts} suppliers={suppliers} defaultDept={deptId === "all" ? null : deptId}
+          onClose={() => setAddItemOpen(false)} onDone={afterWrite} />
+      )}
+      {deptMgrOpen && (
+        <DepartmentManager propertyId={propId} branchName={branch ? `${branch.code} · ${branch.name}` : ""}
+          departments={branchDepts}
+          onClose={() => setDeptMgrOpen(false)}
+          onChanged={async (msg) => { flash(msg); await reloadDepartments(); await refresh().catch(() => {}); }} />
+      )}
       {hubModal?.kind === "transfer" && <TransferModal item={hubModal.item} branches={properties} onClose={() => setHubModal(null)} onDone={afterWrite} />}
       {hubModal?.kind === "request" && <RequestModal item={hubModal.item} branchName={branch?.name ?? ""} onClose={() => setHubModal(null)} onDone={afterWrite} />}
       {diaryOpen && <Diary branchName={branch ? `${branch.code} · ${branch.name}` : ""} movements={movements} properties={properties} onClose={() => setDiaryOpen(false)} />}

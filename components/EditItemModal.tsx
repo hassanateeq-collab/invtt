@@ -1,16 +1,17 @@
 "use client";
 import { useState } from "react";
 import { X, Pencil } from "lucide-react";
-import type { ItemStock, Supplier } from "@/lib/types";
+import type { Department, ItemStock, Supplier } from "@/lib/types";
 import { adjustStock, updateItem } from "@/lib/api";
 
 const inputCls =
   "w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 const labelCls = "mb-1 block text-sm font-medium text-stone-700";
 
-export function EditItemModal({ item, suppliers, onClose, onDone }: {
-  item: ItemStock; suppliers: Supplier[]; onClose: () => void; onDone: (msg: string) => void;
+export function EditItemModal({ item, suppliers, departments, onClose, onDone }: {
+  item: ItemStock; suppliers: Supplier[]; departments: Department[]; onClose: () => void; onDone: (msg: string) => void;
 }) {
+  const [deptId, setDeptId] = useState(item.department_id ?? "");
   const [name, setName] = useState(item.name);
   const [unit, setUnit] = useState(item.unit);
   const [type, setType] = useState<"fresh" | "store">(item.type);
@@ -37,6 +38,7 @@ export function EditItemModal({ item, suppliers, onClose, onDone }: {
       await updateItem(item.id, {
         name: name.trim(), unit: unit.trim(), type, par_level: p, reorder_point: r,
         supplier_id: supplierId || null, delivery_override: route === "" ? null : route,
+        department_id: deptId || null,
       });
       // A typed stock change is recorded as an adjustment (never an overwrite).
       if (stockDelta !== 0) {
@@ -95,6 +97,13 @@ export function EditItemModal({ item, suppliers, onClose, onDone }: {
               <label className={labelCls}>Reorder at</label>
               <input className={inputCls} type="number" min="0" value={reorder} onChange={(e) => setReorder(e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label className={labelCls}>Department</label>
+            <select className={inputCls} value={deptId} onChange={(e) => setDeptId(e.target.value)}>
+              <option value="">— none —</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
           </div>
           <div>
             <label className={labelCls}>Supplier</label>

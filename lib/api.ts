@@ -1,6 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
-import type { ItemStock, MovementRow, Property, RequestRow, Supplier } from "./types";
+import type { Department, ItemStock, MovementRow, Property, RequestRow, Supplier } from "./types";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -12,6 +12,13 @@ export async function fetchProperties(): Promise<Property[]> {
     .from("properties").select("id, code, name, is_hub").order("created_at");
   if (error) throw new Error(error.message);
   return (data ?? []) as Property[];
+}
+
+export async function fetchDepartments(): Promise<Department[]> {
+  const { data, error } = await supabase
+    .from("departments").select("id, property_id, name, sort_order").order("sort_order");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Department[];
 }
 
 export async function fetchSuppliers(): Promise<Supplier[]> {
@@ -95,9 +102,26 @@ export interface ItemPatch {
   reorder_point?: number;
   supplier_id?: string | null;
   delivery_override?: "central" | "direct" | null;
+  department_id?: string | null;
 }
 export const updateItem = (item_id: string, patch: ItemPatch) =>
   callFn("update-item", { item_id, ...patch });
+
+export interface NewItem {
+  property_id: string;
+  department_id?: string | null;
+  name: string;
+  unit?: string;
+  type?: "fresh" | "store";
+  par_level?: number;
+  reorder_point?: number;
+  supplier_id?: string | null;
+}
+export const createItem = (item: NewItem) => callFn("create-item", item as unknown as Record<string, unknown>);
+
+export const upsertDepartment = (d: { id?: string; property_id?: string; name: string; sort_order?: number }) =>
+  callFn("upsert-department", d);
+export const deleteDepartment = (id: string) => callFn("delete-department", { id });
 
 export interface SupplierInput {
   id?: string;

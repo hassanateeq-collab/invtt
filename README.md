@@ -72,7 +72,8 @@ the **SQL Editor** (Dashboard → SQL Editor → New query) in this order:
 
 1. `supabase/migrations/0002_supply_chain.sql`
 2. `supabase/migrations/0003_hub_products_transfers.sql` *(hub-and-spoke, product catalog, transfers, supplier routing — additive, safe on live data)*
-3. `supabase/seed.sql`  *(optional demo data; safe to re-run — run it **after** 0003)*
+3. `supabase/migrations/0004_departments.sql` *(per-branch departments + item.department_id — additive)*
+4. `supabase/seed.sql`  *(optional demo data; safe to re-run — run it **after** the migrations)*
 
 …or use the Supabase CLI:
 
@@ -96,15 +97,15 @@ Each function in `supabase/functions/<name>/index.ts` is **self-contained**
 Functions** → **Deploy a new function** → **Via Editor**. Name it exactly
 (`receive-stock`, `issue-stock`, `adjust-stock`, `create-request`,
 `fulfil-request`, `transfer-stock`, `update-item`, `upsert-supplier`,
-`delete-supplier`), paste the matching `index.ts`, click **Deploy**. Repeat for
-all nine.
+`delete-supplier`, `create-item`, `upsert-department`, `delete-department`),
+paste the matching `index.ts`, click **Deploy**. Repeat for all twelve.
 
 **B. CLI.** From a terminal in the project folder:
 
 ```bash
 supabase login
 supabase link --project-ref <your-project-ref>
-supabase functions deploy receive-stock issue-stock adjust-stock create-request fulfil-request transfer-stock update-item upsert-supplier delete-supplier
+supabase functions deploy receive-stock issue-stock adjust-stock create-request fulfil-request transfer-stock update-item upsert-supplier delete-supplier create-item upsert-department delete-department
 ```
 
 Either way, functions automatically receive `SUPABASE_URL`, `SUPABASE_ANON_KEY`
@@ -144,6 +145,9 @@ refreshed `v_item_stock` row.
 | `update-item` | `{ item_id, name?, unit?, type?, par_level?, reorder_point?, supplier_id?, delivery_override? }` | edit item settings (never stock) |
 | `upsert-supplier` | `{ id?, name, contact?, email?, phone?, lead_time_days?, delivery_mode? }` | create or update a supplier |
 | `delete-supplier` | `{ id }` | delete a supplier (linked items keep stock; supplier_id set null) |
+| `create-item` | `{ property_id, department_id?, name, unit?, type?, par_level?, reorder_point?, supplier_id? }` | add a new item (links/creates product) |
+| `upsert-department` | `{ id?, property_id, name, sort_order? }` | create or rename a department (per branch) |
+| `delete-department` | `{ id }` | delete a department (its items fall back to "All") |
 
 Example:
 
