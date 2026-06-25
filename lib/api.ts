@@ -79,9 +79,13 @@ export async function fetchMovements(propertyId: string): Promise<MovementRow[]>
 // ---- Writes (Edge Functions are the only writers) -------------------------
 
 async function callFn(name: string, body: Record<string, unknown>) {
+  // Use the signed-in keeper's token when available so protected functions
+  // accept the call; fall back to the anon key (public /request → create-request).
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? ANON;
   const res = await fetch(`${URL}/functions/v1/${name}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANON}`, apikey: ANON },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: ANON },
     body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));

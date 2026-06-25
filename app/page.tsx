@@ -2,12 +2,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
-  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree,
+  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut,
 } from "lucide-react";
 import type { Department, ItemStock, MovementRow, Property, RequestRow, StockStatus, Supplier } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments, fulfilRequest,
 } from "@/lib/api";
+import { supabase } from "@/lib/supabase/client";
+import { Login } from "@/components/Login";
 import { expiryBadge, statusBadgeCls, statusLabel, stockTextCls } from "@/lib/format";
 import { ActionModal } from "@/components/Modals";
 import { EditItemModal } from "@/components/EditItemModal";
@@ -33,6 +35,9 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [authReady, setAuthReady] = useState(false);
+  const [authed, setAuthed] = useState(false);
+
   const [view, setView] = useState<"inventory" | "suppliers">("inventory");
   const [kind, setKind] = useState<Kind>("all");
   const [attention, setAttention] = useState(false);
@@ -50,17 +55,24 @@ export default function Page() {
   const listRef = useRef<HTMLDivElement>(null);
   const requestsRef = useRef<HTMLDivElement>(null);
 
+  // Auth gate: the keeper must be signed in to use the management portal.
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => { setAuthed(!!data.session); setAuthReady(true); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setAuthed(!!session));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // Load reference data once signed in.
+  useEffect(() => {
+    if (!authed) return;
     Promise.all([fetchProperties(), fetchSuppliers()])
       .then(([p, s]) => {
         setProperties(p); setSuppliers(s);
         if (p.length) setPropId(p[0].id); else setLoading(false);
       })
       .catch((e) => { setError(e.message); setLoading(false); });
-    // Departments are optional — if the table doesn't exist yet (migration not
-    // run), don't break the portal; just show "All".
     fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
-  }, []);
+  }, [authed]);
 
   async function reloadDepartments() { try { setDepartments(await fetchDepartments()); } catch {} }
 
@@ -71,11 +83,11 @@ export default function Page() {
   }
 
   useEffect(() => {
-    if (!propId) return;
+    if (!authed || !propId) return;
     setLoading(true);
     refresh(propId).catch((e) => setError(e.message)).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propId]);
+  }, [authed, propId]);
 
   function flash(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3200); }
   async function afterWrite(msg: string) { setModal(null); setHubModal(null); setEditItem(null); setAddItemOpen(false); flash(msg); await refresh().catch(() => {}); }
@@ -132,6 +144,9 @@ export default function Page() {
     setTimeout(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
 
+  if (!authReady) return <div className="grid min-h-screen place-items-center text-sm text-stone-400">Loading…</div>;
+  if (!authed) return <Login />;
+
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
@@ -144,10 +159,16 @@ export default function Page() {
               <p className="text-xs text-stone-500">Stock is never typed — only movements are logged.</p>
             </div>
           </div>
-          <button onClick={() => setDiaryOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
-            <History size={16} /> <span className="hidden sm:inline">View movement diary</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setDiaryOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
+              <History size={16} /> <span className="hidden sm:inline">View movement diary</span>
+            </button>
+            <button onClick={() => supabase.auth.signOut()} title="Sign out"
+              className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-500 hover:bg-stone-50">
+              <LogOut size={16} /> <span className="hidden sm:inline">Sign out</span>
+            </button>
+          </div>
         </header>
 
         {/* branch tabs */}

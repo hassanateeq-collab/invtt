@@ -19,6 +19,13 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return bad("Method not allowed", 405);
 
+  // require a signed-in keeper (the public anon key returns no user → rejected)
+  const _t = (req.headers.get("Authorization") ?? "").replace("Bearer ", "").trim();
+  const _auth = _t
+    ? await createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: `Bearer ${_t}` } } }).auth.getUser()
+    : { data: { user: null } };
+  if (!_auth.data.user) return bad("Sign in required", 401);
+
   const body = await req.json().catch(() => ({}));
   const id = body.id ? String(body.id) : null;
   const name = String(body.name ?? "").trim();
