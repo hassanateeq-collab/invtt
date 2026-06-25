@@ -21,6 +21,16 @@ export async function fetchDepartments(): Promise<Department[]> {
   return (data ?? []) as Department[];
 }
 
+// Lightweight item list for the public Request page — names only, no stock.
+export interface RequestItem { id: string; name: string; unit: string; department_id: string | null }
+export async function fetchRequestItems(propertyId: string, departmentId?: string): Promise<RequestItem[]> {
+  let q = supabase.from("items").select("id, name, unit, department_id").eq("property_id", propertyId).order("name");
+  if (departmentId) q = q.eq("department_id", departmentId);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []) as RequestItem[];
+}
+
 export async function fetchSuppliers(): Promise<Supplier[]> {
   const { data, error } = await supabase
     .from("suppliers").select("id, name, contact, email, phone, lead_time_days, delivery_mode").order("name");
