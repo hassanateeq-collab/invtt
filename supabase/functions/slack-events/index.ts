@@ -42,8 +42,11 @@ Deno.serve(async (req) => {
     // only real human messages (skip bot posts, edits, joins, etc.)
     if (e.type === "message" && !e.bot_id && !e.subtype) {
       const text = String(e.text ?? "").trim().toLowerCase();
-      if (text === "req") {
-        const channel = String(e.channel ?? "");
+      const channel = String(e.channel ?? "");
+      // Only react in the configured requests channel (ignore any others the
+      // bot happens to be in). If unset, react anywhere the bot is added.
+      const onlyChannel = Deno.env.get("SLACK_REQUEST_CHANNEL");
+      if (text === "req" && (!onlyChannel || channel === onlyChannel)) {
         const user = String(e.user ?? "");
         const adminToken = Deno.env.get("SLACK_ADMIN_USER_TOKEN");
         if (adminToken) {
