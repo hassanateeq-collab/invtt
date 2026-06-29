@@ -150,6 +150,12 @@ export const setUserRole = (id: string, role: "superadmin" | "warehouse_keeper")
 export const removeUser = (id: string) =>
   callFn("manage-users", { action: "remove", id });
 
+// ---- Superadmin: manage branches (properties) -----------------------------
+export const upsertProperty = (p: { id?: string; code: string; name: string; is_hub?: boolean }) =>
+  callFn("manage-properties", { action: "upsert", ...p });
+export const deleteProperty = (id: string) =>
+  callFn("manage-properties", { action: "delete", id });
+
 export interface ItemPatch {
   name?: string;
   unit?: string;

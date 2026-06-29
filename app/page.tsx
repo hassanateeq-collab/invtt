@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
-  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck,
+  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck, Building2,
 } from "lucide-react";
 import type { Area, Department, ItemStock, MovementRow, Property, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
@@ -24,6 +24,7 @@ import { SuppliersView } from "@/components/SuppliersView";
 import { AreasView } from "@/components/AreasView";
 import { AllNotificationsModal } from "@/components/AllNotificationsModal";
 import { UsersModal } from "@/components/UsersModal";
+import { BranchesModal } from "@/components/BranchesModal";
 
 type Kind = "all" | "fresh" | "store";
 type Modal = { item: ItemStock; kind: "receive" | "issue" | "adjust" } | null;
@@ -64,6 +65,7 @@ export default function Page() {
   const [diaryOpen, setDiaryOpen] = useState(false);
   const [allNotifOpen, setAllNotifOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
+  const [branchesOpen, setBranchesOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [bellBusyId, setBellBusyId] = useState<string | null>(null);
   const seenReqIds = useRef<Set<string> | null>(null);
@@ -116,6 +118,13 @@ export default function Page() {
   }
 
   async function reloadDepartments() { try { setDepartments(await fetchDepartments()); } catch {} }
+  async function reloadProperties() {
+    try {
+      const p = await fetchProperties();
+      setProperties(p);
+      if (p.length && !p.some((x) => x.id === propId)) setPropId(p[0].id);
+    } catch {}
+  }
 
   async function refresh(id = propId) {
     if (!id) return;
@@ -279,7 +288,7 @@ export default function Page() {
         </header>
 
         {/* branch tabs */}
-        <div className="no-scrollbar mt-5 flex gap-2 overflow-x-auto pb-1">
+        <div className="no-scrollbar mt-5 flex items-center gap-2 overflow-x-auto pb-1">
           {properties.map((p) => {
             const active = p.id === propId;
             return (
@@ -291,6 +300,12 @@ export default function Page() {
               </button>
             );
           })}
+          {isSuperadmin && (
+            <button onClick={() => setBranchesOpen(true)} title="Add / edit / delete branches"
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100">
+              <Building2 size={15} /> <span className="hidden sm:inline">Branches</span>
+            </button>
+          )}
         </div>
 
         {/* view toggle */}
@@ -515,6 +530,11 @@ export default function Page() {
       {usersOpen && isSuperadmin && (
         <UsersModal myId={myId} onClose={() => setUsersOpen(false)}
           onChanged={(msg) => flash(msg)} />
+      )}
+      {branchesOpen && isSuperadmin && (
+        <BranchesModal properties={properties} items={allItems}
+          onClose={() => setBranchesOpen(false)}
+          onChanged={async (msg) => { flash(msg); await reloadProperties(); await refresh().catch(() => {}); }} />
       )}
       {toast && (
         <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-stone-900 px-4 py-2.5 text-sm text-white shadow-lg">{toast}</div>
