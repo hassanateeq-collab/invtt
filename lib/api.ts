@@ -1,6 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
-import type { Area, Department, ItemStock, MovementRow, Property, RequestRow, Supplier, Unit } from "./types";
+import type { Area, Department, ItemStock, MovementRow, PortalUser, Property, RequestRow, Supplier, Unit } from "./types";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -74,9 +74,15 @@ export async function fetchRequests(): Promise<RequestRow[]> {
     .from("requests")
     .select("*, items(name, unit), properties(code, name)")
     .order("created_at", { ascending: false })
-    .limit(60);
+    .limit(100);
   if (error) throw new Error(error.message);
   return (data ?? []) as RequestRow[];
+}
+
+// The signed-in keeper's own role ('superadmin' unlocks the Users panel).
+export async function fetchMyRole(): Promise<string | null> {
+  const { data } = await supabase.from("profiles").select("role").limit(1).maybeSingle();
+  return (data?.role as string | undefined) ?? null;
 }
 
 export async function fetchMovements(propertyId: string): Promise<MovementRow[]> {
@@ -124,6 +130,25 @@ export const fulfilRequest = (request_id: string) =>
 
 export const rejectRequest = (request_id: string, reason: string) =>
   callFn("reject-request", { request_id, reason });
+
+// Mark notifications as read (only the still-unread ids are stamped server-side).
+export const markSeen = (ids: string[]) => callFn("mark-seen", { ids });
+
+// ---- Superadmin: manage this portal's keepers -----------------------------
+export const fetchUsers = async (): Promise<PortalUser[]> => {
+  const j = await callFn("manage-users", { action: "list" });
+  return (j.users ?? []) as PortalUser[];
+};
+export const createUser = (email: string, password: string, full_name: string, role: "superadmin" | "warehouse_keeper" = "warehouse_keeper") =>
+  callFn("manage-users", { action: "create", email, password, full_name, role });
+export const setUserPassword = (id: string, password: string) =>
+  callFn("manage-users", { action: "set_password", id, password });
+export const setUserEmail = (id: string, email: string) =>
+  callFn("manage-users", { action: "set_email", id, email });
+export const setUserRole = (id: string, role: "superadmin" | "warehouse_keeper") =>
+  callFn("manage-users", { action: "set_role", id, role });
+export const removeUser = (id: string) =>
+  callFn("manage-users", { action: "remove", id });
 
 export interface ItemPatch {
   name?: string;

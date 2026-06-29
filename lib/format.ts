@@ -51,6 +51,13 @@ export const stockTextCls: Record<StockStatus, string> = {
   out: "text-red-600",
 };
 
+// "29 Jun, 3:42 PM" — day + time for notifications / logs
+export function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
+  });
+}
+
 // "2h ago", "3d ago", "just now"
 export function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();

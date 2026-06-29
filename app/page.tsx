@@ -2,12 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
-  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin,
+  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck,
 } from "lucide-react";
 import type { Area, Department, ItemStock, MovementRow, Property, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -22,6 +22,8 @@ import { TransferModal, RequestModal } from "@/components/HubModals";
 import { Diary } from "@/components/Diary";
 import { SuppliersView } from "@/components/SuppliersView";
 import { AreasView } from "@/components/AreasView";
+import { AllNotificationsModal } from "@/components/AllNotificationsModal";
+import { UsersModal } from "@/components/UsersModal";
 
 type Kind = "all" | "fresh" | "store";
 type Modal = { item: ItemStock; kind: "receive" | "issue" | "adjust" } | null;
@@ -44,6 +46,9 @@ export default function Page() {
   const [authReady, setAuthReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [isKeeper, setIsKeeper] = useState<boolean | null>(null);
+  const [myId, setMyId] = useState<string>("");
+  const [role, setRole] = useState<string | null>(null);
+  const isSuperadmin = role === "superadmin";
 
   const [view, setView] = useState<"inventory" | "suppliers" | "areas">("inventory");
   const [kind, setKind] = useState<Kind>("all");
@@ -57,6 +62,8 @@ export default function Page() {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [deptMgrOpen, setDeptMgrOpen] = useState(false);
   const [diaryOpen, setDiaryOpen] = useState(false);
+  const [allNotifOpen, setAllNotifOpen] = useState(false);
+  const [usersOpen, setUsersOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [bellBusyId, setBellBusyId] = useState<string | null>(null);
   const seenReqIds = useRef<Set<string> | null>(null);
@@ -66,19 +73,25 @@ export default function Page() {
 
   // Auth gate: the keeper must be signed in to use the management portal.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { setAuthed(!!data.session); setAuthReady(true); });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setAuthed(!!session));
+    supabase.auth.getSession().then(({ data }) => {
+      setAuthed(!!data.session); setMyId(data.session?.user.id ?? ""); setAuthReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setAuthed(!!session); setMyId(session?.user.id ?? "");
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
   // Is the signed-in user an allow-listed keeper? (own profile row visible)
   useEffect(() => {
-    if (!authed) { setIsKeeper(null); return; }
+    if (!authed) { setIsKeeper(null); setRole(null); return; }
     (async () => {
       try {
-        const { data } = await supabase.from("profiles").select("id").limit(1);
-        setIsKeeper(!!data && data.length > 0);
-      } catch { setIsKeeper(false); }
+        const { data } = await supabase.from("profiles").select("id, role").limit(1);
+        const me = data && data.length > 0 ? data[0] : null;
+        setIsKeeper(!!me);
+        setRole((me?.role as string | undefined) ?? null);
+      } catch { setIsKeeper(false); setRole(null); }
     })();
   }, [authed]);
 
@@ -178,6 +191,14 @@ export default function Page() {
     finally { setBellBusyId(null); }
   }
 
+  async function onSeenReqs(ids: string[]) {
+    if (!ids.length) return;
+    // optimistic: stamp locally so the highlight clears instantly
+    const now = new Date().toISOString();
+    setRequests((rs) => rs.map((r) => (ids.includes(r.id) && !r.seen_at ? { ...r, seen_at: now } : r)));
+    try { await markSeen(ids); } catch { /* a later refresh reconciles */ }
+  }
+
   async function onRejectReq(r: RequestRow, reason: string) {
     setBellBusyId(r.id);
     try {
@@ -238,7 +259,14 @@ export default function Page() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <NotificationBell requests={requests} busyId={bellBusyId} onIssue={onFulfil} onReject={onRejectReq} />
+            <NotificationBell requests={requests} busyId={bellBusyId} onIssue={onFulfil} onReject={onRejectReq}
+              onSeen={onSeenReqs} onSeeAll={() => setAllNotifOpen(true)} />
+            {isSuperadmin && (
+              <button onClick={() => setUsersOpen(true)} title="Manage users"
+                className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100">
+                <ShieldCheck size={16} /> <span className="hidden sm:inline">Users</span>
+              </button>
+            )}
             <button onClick={() => setDiaryOpen(true)}
               className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
               <History size={16} /> <span className="hidden sm:inline">View movement diary</span>
@@ -483,6 +511,11 @@ export default function Page() {
       {hubModal?.kind === "transfer" && <TransferModal item={hubModal.item} branches={properties} onClose={() => setHubModal(null)} onDone={afterWrite} />}
       {hubModal?.kind === "request" && <RequestModal item={hubModal.item} branchName={branch?.name ?? ""} onClose={() => setHubModal(null)} onDone={afterWrite} />}
       {diaryOpen && <Diary branchName={branch ? `${branch.code} · ${branch.name}` : ""} movements={movements} properties={properties} onClose={() => setDiaryOpen(false)} />}
+      {allNotifOpen && <AllNotificationsModal requests={requests} onClose={() => setAllNotifOpen(false)} />}
+      {usersOpen && isSuperadmin && (
+        <UsersModal myId={myId} onClose={() => setUsersOpen(false)}
+          onChanged={(msg) => flash(msg)} />
+      )}
       {toast && (
         <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-stone-900 px-4 py-2.5 text-sm text-white shadow-lg">{toast}</div>
       )}

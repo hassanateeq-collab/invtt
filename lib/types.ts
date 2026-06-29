@@ -72,9 +72,18 @@ export interface RequestRow {
   source: "slack" | "portal";
   request_type: RequestType;
   reject_reason: string | null;
+  seen_at: string | null;
   created_at: string;
   items: { name: string; unit: string } | null;
   properties: { code: string; name: string } | null;
+}
+
+export interface PortalUser {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string; // 'superadmin' | 'warehouse_keeper'
+  created_at: string;
 }
 
 export interface MovementRow {

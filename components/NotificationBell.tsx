@@ -1,23 +1,37 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Bell, ArrowLeftRight } from "lucide-react";
+import { Bell, ArrowLeftRight, ListChecks } from "lucide-react";
 import type { RequestRow } from "@/lib/types";
+import { fmtDateTime, relativeTime } from "@/lib/format";
 
-export function NotificationBell({ requests, busyId, onIssue, onReject }: {
+export function NotificationBell({ requests, busyId, onIssue, onReject, onSeen, onSeeAll }: {
   requests: RequestRow[]; busyId: string | null;
   onIssue: (r: RequestRow) => void; onReject: (r: RequestRow, reason: string) => void;
+  onSeen: (ids: string[]) => void; onSeeAll: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
   const pending = useMemo(() => requests.filter((r) => r.status === "pending"), [requests]);
+  const unreadIds = useMemo(() => requests.filter((r) => !r.seen_at).map((r) => r.id), [requests]);
   // pending first (oldest first = FIFO), then handled (newest first)
   const ordered = useMemo(() => {
     const p = requests.filter((r) => r.status === "pending").reverse();
     const done = requests.filter((r) => r.status !== "pending");
     return [...p, ...done];
   }, [requests]);
+
+  // Opening the bell is "reading" — stamp the unread ones when it closes, so
+  // they stay highlighted while you look at them, then clear next time.
+  function toggle() {
+    setOpen((o) => {
+      const next = !o;
+      if (!next && unreadIds.length) onSeen(unreadIds);
+      return next;
+    });
+  }
+  function close() { if (open && unreadIds.length) onSeen(unreadIds); setOpen(false); }
 
   function startReject(id: string) { setRejectingId(id); setReason(""); }
   function confirmReject(r: RequestRow) {
@@ -28,41 +42,54 @@ export function NotificationBell({ requests, busyId, onIssue, onReject }: {
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen((o) => !o)} title="Requests"
+      <button onClick={toggle} title="Notifications"
         className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-600 hover:bg-stone-50">
         <Bell size={18} />
-        {pending.length > 0 && (
+        {unreadIds.length > 0 && (
           <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-semibold text-white">
-            {pending.length}
+            {unreadIds.length}
           </span>
         )}
       </button>
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-40" onClick={close} />
           <div className="absolute right-0 z-50 mt-2 w-80 max-w-[90vw] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl">
-            <div className="border-b border-stone-100 px-4 py-3">
-              <h3 className="text-sm font-semibold text-stone-900">Requests</h3>
-              <p className="text-xs text-stone-500">{pending.length} pending</p>
+            <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+              <div>
+                <h3 className="text-sm font-semibold text-stone-900">Notifications</h3>
+                <p className="text-xs text-stone-500">
+                  {unreadIds.length > 0 ? `${unreadIds.length} new · ` : ""}{pending.length} pending
+                </p>
+              </div>
+              {unreadIds.length > 0 && (
+                <button onClick={() => onSeen(unreadIds)} className="text-xs font-medium text-teal-700 hover:underline">Mark all read</button>
+              )}
             </div>
             <div className="max-h-96 overflow-y-auto">
               {ordered.length === 0 ? (
-                <p className="px-4 py-8 text-center text-sm text-stone-400">No requests yet.</p>
+                <p className="px-4 py-8 text-center text-sm text-stone-400">No notifications yet.</p>
               ) : (
                 ordered.map((r) => {
                   const transfer = r.request_type === "branch_transfer";
                   const who = transfer ? (r.properties?.code ?? "branch") : r.department;
                   const busy = busyId === r.id;
                   const handled = r.status !== "pending";
+                  const unread = !r.seen_at;
                   return (
-                    <div key={r.id} className={`border-b border-stone-100 px-4 py-3 last:border-0 ${handled ? "opacity-70" : ""}`}>
-                      <div className="mb-2 flex items-start gap-2">
+                    <div key={r.id}
+                      className={`border-b border-stone-100 px-4 py-3 last:border-0 ${unread ? "border-l-2 border-l-blue-500 bg-blue-50/50" : ""} ${handled ? "opacity-80" : ""}`}>
+                      <div className="mb-1.5 flex items-start gap-2">
+                        {unread && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" title="Unread" />}
                         <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-medium ${transfer ? "bg-teal-50 text-teal-700" : "bg-stone-100 text-stone-600"}`}>{who}</span>
                         <p className="text-sm text-stone-700">
                           {transfer ? "needs" : "wants"} <span className="tnum font-semibold">{r.quantity} {r.items?.unit}</span> of {r.items?.name}
                         </p>
                       </div>
+                      <p className="mb-2 pl-0.5 text-[11px] text-stone-400" title={fmtDateTime(r.created_at)}>
+                        {fmtDateTime(r.created_at)} · {relativeTime(r.created_at)}
+                      </p>
 
                       {r.status === "done" && (
                         <span className="inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">✓ issued</span>
@@ -106,6 +133,10 @@ export function NotificationBell({ requests, busyId, onIssue, onReject }: {
                 })
               )}
             </div>
+            <button onClick={() => { close(); onSeeAll(); }}
+              className="flex w-full items-center justify-center gap-1.5 border-t border-stone-100 bg-stone-50 px-4 py-2.5 text-xs font-semibold text-teal-700 hover:bg-stone-100">
+              <ListChecks size={14} /> See all notifications
+            </button>
           </div>
         </>
       )}
