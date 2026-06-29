@@ -57,6 +57,7 @@ export interface RequestRow {
   status: "pending" | "done" | "cancelled";
   source: "slack" | "portal";
   request_type: RequestType;
+  reject_reason: string | null;
   created_at: string;
   items: { name: string; unit: string } | null;
   properties: { code: string; name: string } | null;

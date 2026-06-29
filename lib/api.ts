@@ -53,14 +53,14 @@ export async function fetchItems(propertyId: string): Promise<ItemStock[]> {
   return (data ?? []) as ItemStock[];
 }
 
-// All pending requests with item + requesting-branch info. The page decides
-// which to show in the inbox based on the current branch / hub status.
+// Recent requests (all statuses) with item + requesting-branch info. The page
+// derives the actionable "pending" set; the bell keeps handled ones visible.
 export async function fetchRequests(): Promise<RequestRow[]> {
   const { data, error } = await supabase
     .from("requests")
     .select("*, items(name, unit), properties(code, name)")
-    .eq("status", "pending")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(60);
   if (error) throw new Error(error.message);
   return (data ?? []) as RequestRow[];
 }
@@ -108,8 +108,8 @@ export const transferStock = (from_item_id: string, to_property_id: string, quan
 export const fulfilRequest = (request_id: string) =>
   callFn("fulfil-request", { request_id });
 
-export const rejectRequest = (request_id: string) =>
-  callFn("reject-request", { request_id });
+export const rejectRequest = (request_id: string, reason: string) =>
+  callFn("reject-request", { request_id, reason });
 
 export interface ItemPatch {
   name?: string;

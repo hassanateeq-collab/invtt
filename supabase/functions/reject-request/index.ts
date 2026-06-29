@@ -29,7 +29,9 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
   const request_id = String(body.request_id ?? "");
+  const reason = String(body.reason ?? "").trim();
   if (!request_id) return bad("request_id is required");
+  if (!reason) return bad("A reason is required to reject");
 
   const c = db();
   const { data: r } = await c.from("requests").select("status").eq("id", request_id).single();
@@ -37,7 +39,7 @@ Deno.serve(async (req) => {
   if (r.status === "done") return bad("Already issued — can't reject");
 
   const { error } = await c.from("requests")
-    .update({ status: "cancelled" }).eq("id", request_id).eq("status", "pending");
+    .update({ status: "cancelled", reject_reason: reason }).eq("id", request_id).eq("status", "pending");
   if (error) return bad(error.message, 500);
   return json({ ok: true });
 });

@@ -144,7 +144,8 @@ export default function Page() {
   // Inbox: department requests for this branch; branch-transfer requests show on
   // the hub (actionable) and on the requesting branch (info).
   const inbox = useMemo(() => requests.filter((r) =>
-    r.request_type === "branch_transfer" ? (isHub || r.property_id === propId) : r.property_id === propId,
+    r.status === "pending" &&
+    (r.request_type === "branch_transfer" ? (isHub || r.property_id === propId) : r.property_id === propId),
   ), [requests, isHub, propId]);
   const actionable = (r: RequestRow) =>
     (r.request_type === "department" && r.property_id === propId) ||
@@ -162,10 +163,10 @@ export default function Page() {
     finally { setBellBusyId(null); }
   }
 
-  async function onRejectReq(r: RequestRow) {
+  async function onRejectReq(r: RequestRow, reason: string) {
     setBellBusyId(r.id);
     try {
-      await rejectRequest(r.id);
+      await rejectRequest(r.id, reason);
       flash(`Rejected request from ${r.request_type === "branch_transfer" ? (r.properties?.code ?? "branch") : r.department}`);
       await refresh();
     } catch (e) { flash(e instanceof Error ? e.message : "Could not reject"); }
