@@ -1,6 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
-import type { Department, ItemStock, MovementRow, Property, RequestRow, Supplier } from "./types";
+import type { Area, Department, ItemStock, MovementRow, Property, RequestRow, Supplier, Unit } from "./types";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -19,6 +19,20 @@ export async function fetchDepartments(): Promise<Department[]> {
     .from("departments").select("id, property_id, name, sort_order").order("sort_order");
   if (error) throw new Error(error.message);
   return (data ?? []) as Department[];
+}
+
+export async function fetchAreas(): Promise<Area[]> {
+  const { data, error } = await supabase
+    .from("areas").select("id, property_id, name, sort_order").order("sort_order");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Area[];
+}
+
+export async function fetchUnits(): Promise<Unit[]> {
+  const { data, error } = await supabase
+    .from("units").select("id, name, sort_order").order("sort_order");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Unit[];
 }
 
 // Lightweight item list for the public Request page — names only, no stock.
@@ -120,6 +134,7 @@ export interface ItemPatch {
   supplier_id?: string | null;
   delivery_override?: "central" | "direct" | null;
   department_id?: string | null;
+  area_id?: string | null;
 }
 export const updateItem = (item_id: string, patch: ItemPatch) =>
   callFn("update-item", { item_id, ...patch });
@@ -127,6 +142,7 @@ export const updateItem = (item_id: string, patch: ItemPatch) =>
 export interface NewItem {
   property_id: string;
   department_id?: string | null;
+  area_id?: string | null;
   name: string;
   unit?: string;
   type?: "fresh" | "store";
@@ -141,6 +157,16 @@ export const upsertDepartment = (d: { id?: string; property_id?: string; name: s
 export const deleteDepartment = (id: string) => callFn("delete-department", { id });
 export const copyDepartment = (source_department_id: string, target_property_id: string, target_department_name?: string) =>
   callFn("copy-department", { source_department_id, target_property_id, target_department_name });
+
+// Storage areas + units (one function, keeper-only)
+export const upsertArea = (property_id: string, name: string, id?: string) =>
+  callFn("manage-catalog", { entity: "area", action: "upsert", property_id, name, id });
+export const deleteArea = (id: string) =>
+  callFn("manage-catalog", { entity: "area", action: "delete", id });
+export const upsertUnit = (name: string, id?: string) =>
+  callFn("manage-catalog", { entity: "unit", action: "upsert", name, id });
+export const deleteUnit = (id: string) =>
+  callFn("manage-catalog", { entity: "unit", action: "delete", id });
 
 export interface SupplierInput {
   id?: string;

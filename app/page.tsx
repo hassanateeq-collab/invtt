@@ -2,11 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
-  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut,
+  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin,
 } from "lucide-react";
-import type { Department, ItemStock, MovementRow, Property, RequestRow, StockStatus, Supplier } from "@/lib/types";
+import type { Area, Department, ItemStock, MovementRow, Property, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
-  fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments, fulfilRequest, rejectRequest,
+  fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -20,6 +21,7 @@ import { DepartmentManager } from "@/components/DepartmentManager";
 import { TransferModal, RequestModal } from "@/components/HubModals";
 import { Diary } from "@/components/Diary";
 import { SuppliersView } from "@/components/SuppliersView";
+import { AreasView } from "@/components/AreasView";
 
 type Kind = "all" | "fresh" | "store";
 type Modal = { item: ItemStock; kind: "receive" | "issue" | "adjust" } | null;
@@ -31,6 +33,8 @@ export default function Page() {
   const [allItems, setAllItems] = useState<ItemStock[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [deptId, setDeptId] = useState<string>("all");
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [movements, setMovements] = useState<MovementRow[]>([]);
@@ -41,7 +45,7 @@ export default function Page() {
   const [authed, setAuthed] = useState(false);
   const [isKeeper, setIsKeeper] = useState<boolean | null>(null);
 
-  const [view, setView] = useState<"inventory" | "suppliers">("inventory");
+  const [view, setView] = useState<"inventory" | "suppliers" | "areas">("inventory");
   const [kind, setKind] = useState<Kind>("all");
   const [attention, setAttention] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StockStatus | null>(null);
@@ -88,7 +92,15 @@ export default function Page() {
       })
       .catch((e) => { setError(e.message); setLoading(false); });
     fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
+    fetchAreas().then(setAreas).catch(() => setAreas([]));
+    fetchUnits().then(setUnits).catch(() => setUnits([]));
   }, [isKeeper]);
+
+  async function reloadCatalog() {
+    try { setAreas(await fetchAreas()); } catch {}
+    try { setUnits(await fetchUnits()); } catch {}
+    try { setDepartments(await fetchDepartments()); } catch {}
+  }
 
   async function reloadDepartments() { try { setDepartments(await fetchDepartments()); } catch {} }
 
@@ -135,6 +147,9 @@ export default function Page() {
   const branchDepts = useMemo(
     () => departments.filter((d) => d.property_id === propId).sort((a, b) => a.sort_order - b.sort_order),
     [departments, propId]);
+  const branchAreas = useMemo(
+    () => areas.filter((a) => a.property_id === propId).sort((a, b) => a.sort_order - b.sort_order),
+    [areas, propId]);
 
   const items = useMemo(() => {
     const inBranch = allItems.filter((i) => i.property_id === propId);
@@ -260,6 +275,10 @@ export default function Page() {
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "suppliers" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
             <Truck size={15} /> Suppliers &amp; orders
           </button>
+          <button onClick={() => setView("areas")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "areas" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
+            <MapPin size={15} /> Storage areas
+          </button>
         </div>
 
         {error && (
@@ -271,6 +290,10 @@ export default function Page() {
         {view === "suppliers" ? (
           <SuppliersView suppliers={suppliers} items={allItems} properties={properties}
             onChanged={async (msg) => { flash(msg); try { setSuppliers(await fetchSuppliers()); } catch {} }} />
+        ) : view === "areas" ? (
+          <AreasView propertyId={propId} branchName={branch ? `${branch.code} · ${branch.name}` : ""}
+            areas={branchAreas} units={units} items={allItems}
+            onChanged={async (msg) => { flash(msg); await reloadCatalog(); await refresh().catch(() => {}); }} />
         ) : (
           <>
             {/* department tabs */}
@@ -443,10 +466,12 @@ export default function Page() {
       {modal && <ActionModal item={modal.item} kind={modal.kind} onClose={() => setModal(null)} onDone={afterWrite} />}
       {editItem && <EditItemModal item={editItem} suppliers={suppliers}
         departments={departments.filter((d) => d.property_id === editItem.property_id)}
+        areas={areas.filter((a) => a.property_id === editItem.property_id)} units={units}
         onClose={() => setEditItem(null)} onDone={afterWrite} />}
       {addItemOpen && (
         <AddItemModal propertyId={propId} branchName={branch ? `${branch.code} · ${branch.name}` : ""}
-          departments={branchDepts} suppliers={suppliers} defaultDept={deptId === "all" ? null : deptId}
+          departments={branchDepts} areas={branchAreas} units={units} suppliers={suppliers}
+          defaultDept={deptId === "all" ? null : deptId}
           onClose={() => setAddItemOpen(false)} onDone={afterWrite} />
       )}
       {deptMgrOpen && (

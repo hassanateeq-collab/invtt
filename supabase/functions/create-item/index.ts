@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
   const par_level = Math.max(0, Number(body.par_level) || 0);
   const reorder_point = Math.max(0, Number(body.reorder_point) || 0);
   const department_id = body.department_id ? String(body.department_id) : null;
+  const area_id = body.area_id ? String(body.area_id) : null;
   const supplier_id = body.supplier_id ? String(body.supplier_id) : null;
 
   const c = db();
@@ -68,7 +69,7 @@ Deno.serve(async (req) => {
   }
 
   const { data: item, error } = await c.from("items").insert({
-    property_id, department_id, product_id, supplier_id, name, unit, type, par_level, reorder_point,
+    property_id, department_id, area_id, product_id, supplier_id, name, unit, type, par_level, reorder_point,
   }).select("id").single();
   if (error) return bad(error.message, 500);
 

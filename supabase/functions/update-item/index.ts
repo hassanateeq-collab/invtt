@@ -67,6 +67,9 @@ Deno.serve(async (req) => {
   if (body.department_id !== undefined) {
     patch.department_id = body.department_id ? String(body.department_id) : null;
   }
+  if (body.area_id !== undefined) {
+    patch.area_id = body.area_id ? String(body.area_id) : null;
+  }
   if (body.delivery_override !== undefined) {
     const v = body.delivery_override;
     if (v !== null && v !== "central" && v !== "direct") return bad("delivery_override must be central, direct, or null");

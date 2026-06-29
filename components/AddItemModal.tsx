@@ -1,22 +1,22 @@
 "use client";
 import { useState } from "react";
 import { X, PackagePlus } from "lucide-react";
-import type { Department, Supplier } from "@/lib/types";
+import type { Area, Department, Supplier, Unit } from "@/lib/types";
 import { createItem } from "@/lib/api";
-import { UNITS } from "@/lib/units";
 
 const inputCls =
   "w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 const labelCls = "mb-1 block text-sm font-medium text-stone-700";
 
-export function AddItemModal({ propertyId, branchName, departments, suppliers, defaultDept, onClose, onDone }: {
-  propertyId: string; branchName: string; departments: Department[]; suppliers: Supplier[];
+export function AddItemModal({ propertyId, branchName, departments, areas, units, suppliers, defaultDept, onClose, onDone }: {
+  propertyId: string; branchName: string; departments: Department[]; areas: Area[]; units: Unit[]; suppliers: Supplier[];
   defaultDept: string | null; onClose: () => void; onDone: (msg: string) => void;
 }) {
   const [name, setName] = useState("");
-  const [unit, setUnit] = useState("piece");
+  const [unit, setUnit] = useState(units[0]?.name ?? "piece");
   const [type, setType] = useState<"fresh" | "store">("store");
   const [deptId, setDeptId] = useState(defaultDept ?? "");
+  const [areaId, setAreaId] = useState("");
   const [par, setPar] = useState("0");
   const [reorder, setReorder] = useState("0");
   const [supplierId, setSupplierId] = useState("");
@@ -31,6 +31,7 @@ export function AddItemModal({ propertyId, branchName, departments, suppliers, d
       await createItem({
         property_id: propertyId,
         department_id: deptId || null,
+        area_id: areaId || null,
         name: name.trim(),
         unit: unit.trim() || "piece",
         type,
@@ -59,22 +60,31 @@ export function AddItemModal({ propertyId, branchName, departments, suppliers, d
             <label className={labelCls}>Item name</label>
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="e.g. Bath towels" />
           </div>
-          <div>
-            <label className={labelCls}>Department</label>
-            <select className={inputCls} value={deptId} onChange={(e) => setDeptId(e.target.value)}>
-              <option value="">— none —</option>
-              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Department</label>
+              <select className={inputCls} value={deptId} onChange={(e) => setDeptId(e.target.value)}>
+                <option value="">— none —</option>
+                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Storage Area</label>
+              <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+                <option value="">— none —</option>
+                {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Unit</label>
               <select className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)}>
-                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                {units.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelCls}>Type</label>
+              <label className={labelCls}>Kind</label>
               <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as "fresh" | "store")}>
                 <option value="store">Storeroom</option>
                 <option value="fresh">Fresh</option>

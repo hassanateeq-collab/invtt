@@ -18,6 +18,19 @@ export interface Department {
   sort_order: number;
 }
 
+export interface Area {
+  id: string;
+  property_id: string;
+  name: string;
+  sort_order: number;
+}
+
+export interface Unit {
+  id: string;
+  name: string;
+  sort_order: number;
+}
+
 export interface Supplier {
   id: string;
   name: string;
@@ -32,6 +45,7 @@ export interface ItemStock {
   id: string;
   property_id: string;
   department_id: string | null;
+  area_id: string | null;
   supplier_id: string | null;
   product_id: string | null;
   name: string;

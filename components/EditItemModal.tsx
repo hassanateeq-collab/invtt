@@ -1,18 +1,19 @@
 "use client";
 import { useState } from "react";
 import { X, Pencil } from "lucide-react";
-import type { Department, ItemStock, Supplier } from "@/lib/types";
+import type { Area, Department, ItemStock, Supplier, Unit } from "@/lib/types";
 import { adjustStock, updateItem } from "@/lib/api";
-import { UNITS } from "@/lib/units";
 
 const inputCls =
   "w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 const labelCls = "mb-1 block text-sm font-medium text-stone-700";
 
-export function EditItemModal({ item, suppliers, departments, onClose, onDone }: {
-  item: ItemStock; suppliers: Supplier[]; departments: Department[]; onClose: () => void; onDone: (msg: string) => void;
+export function EditItemModal({ item, suppliers, departments, areas, units, onClose, onDone }: {
+  item: ItemStock; suppliers: Supplier[]; departments: Department[]; areas: Area[]; units: Unit[];
+  onClose: () => void; onDone: (msg: string) => void;
 }) {
   const [deptId, setDeptId] = useState(item.department_id ?? "");
+  const [areaId, setAreaId] = useState(item.area_id ?? "");
   const [name, setName] = useState(item.name);
   const [unit, setUnit] = useState(item.unit);
   const [type, setType] = useState<"fresh" | "store">(item.type);
@@ -39,7 +40,7 @@ export function EditItemModal({ item, suppliers, departments, onClose, onDone }:
       await updateItem(item.id, {
         name: name.trim(), unit: unit.trim(), type, par_level: p, reorder_point: r,
         supplier_id: supplierId || null, delivery_override: route === "" ? null : route,
-        department_id: deptId || null,
+        department_id: deptId || null, area_id: areaId || null,
       });
       // A typed stock change is recorded as an adjustment (never an overwrite).
       if (stockDelta !== 0) {
@@ -69,11 +70,11 @@ export function EditItemModal({ item, suppliers, departments, onClose, onDone }:
             <div>
               <label className={labelCls}>Unit</label>
               <select className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)}>
-                {(UNITS.includes(unit) ? UNITS : [unit, ...UNITS]).map((u) => <option key={u} value={u}>{u}</option>)}
+                {(units.some((u) => u.name === unit) ? units.map((u) => u.name) : [unit, ...units.map((u) => u.name)]).map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelCls}>Type</label>
+              <label className={labelCls}>Kind</label>
               <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as "fresh" | "store")}>
                 <option value="fresh">Fresh</option>
                 <option value="store">Storeroom</option>
@@ -101,12 +102,21 @@ export function EditItemModal({ item, suppliers, departments, onClose, onDone }:
               <input className={inputCls} type="number" min="0" value={reorder} onChange={(e) => setReorder(e.target.value)} />
             </div>
           </div>
-          <div>
-            <label className={labelCls}>Department</label>
-            <select className={inputCls} value={deptId} onChange={(e) => setDeptId(e.target.value)}>
-              <option value="">— none —</option>
-              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Department</label>
+              <select className={inputCls} value={deptId} onChange={(e) => setDeptId(e.target.value)}>
+                <option value="">— none —</option>
+                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Storage Area</label>
+              <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+                <option value="">— none —</option>
+                {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
           </div>
           <div>
             <label className={labelCls}>Supplier</label>
