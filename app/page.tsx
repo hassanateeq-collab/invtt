@@ -6,10 +6,12 @@ import {
 } from "lucide-react";
 import type { Department, ItemStock, MovementRow, Property, RequestRow, StockStatus, Supplier } from "@/lib/types";
 import {
-  fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments, fulfilRequest,
+  fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments, fulfilRequest, rejectRequest,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
+import { playBell } from "@/lib/bell";
 import { Login } from "@/components/Login";
+import { NotificationBell } from "@/components/NotificationBell";
 import { expiryBadge, statusBadgeCls, statusLabel, stockTextCls } from "@/lib/format";
 import { ActionModal } from "@/components/Modals";
 import { EditItemModal } from "@/components/EditItemModal";
@@ -52,6 +54,8 @@ export default function Page() {
   const [deptMgrOpen, setDeptMgrOpen] = useState(false);
   const [diaryOpen, setDiaryOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [bellBusyId, setBellBusyId] = useState<string | null>(null);
+  const seenReqIds = useRef<Set<string> | null>(null);
 
   const listRef = useRef<HTMLDivElement>(null);
   const requestsRef = useRef<HTMLDivElement>(null);
@@ -101,6 +105,27 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isKeeper, propId]);
 
+  // Ring the bell when a new pending request appears (live or via poll).
+  useEffect(() => {
+    const ids = new Set(requests.map((r) => r.id));
+    if (seenReqIds.current === null) { seenReqIds.current = ids; return; }
+    let hasNew = false;
+    ids.forEach((id) => { if (!seenReqIds.current!.has(id)) hasNew = true; });
+    seenReqIds.current = ids;
+    if (hasNew) playBell();
+  }, [requests]);
+
+  // Live updates: realtime on new requests + a 15s safety poll.
+  useEffect(() => {
+    if (!isKeeper) return;
+    const iv = setInterval(() => { refresh().catch(() => {}); }, 15000);
+    const ch = supabase.channel("inv-requests")
+      .on("postgres_changes", { event: "INSERT", schema: "invtt", table: "requests" }, () => { refresh().catch(() => {}); })
+      .subscribe();
+    return () => { clearInterval(iv); supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isKeeper, propId]);
+
   function flash(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3200); }
   async function afterWrite(msg: string) { setModal(null); setHubModal(null); setEditItem(null); setAddItemOpen(false); flash(msg); await refresh().catch(() => {}); }
 
@@ -126,6 +151,7 @@ export default function Page() {
     (r.request_type === "branch_transfer" && isHub);
 
   async function onFulfil(r: RequestRow) {
+    setBellBusyId(r.id);
     try {
       await fulfilRequest(r.id);
       flash(r.request_type === "branch_transfer"
@@ -133,6 +159,17 @@ export default function Page() {
         : `Issued ${r.quantity} ${r.items?.unit ?? ""} to ${r.department}`);
       await refresh();
     } catch (e) { flash(e instanceof Error ? e.message : "Could not fulfil request"); }
+    finally { setBellBusyId(null); }
+  }
+
+  async function onRejectReq(r: RequestRow) {
+    setBellBusyId(r.id);
+    try {
+      await rejectRequest(r.id);
+      flash(`Rejected request from ${r.request_type === "branch_transfer" ? (r.properties?.code ?? "branch") : r.department}`);
+      await refresh();
+    } catch (e) { flash(e instanceof Error ? e.message : "Could not reject"); }
+    finally { setBellBusyId(null); }
   }
 
   const counts = useMemo(() => ({
@@ -185,6 +222,7 @@ export default function Page() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <NotificationBell requests={requests} busyId={bellBusyId} onIssue={onFulfil} onReject={onRejectReq} />
             <button onClick={() => setDiaryOpen(true)}
               className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
               <History size={16} /> <span className="hidden sm:inline">View movement diary</span>

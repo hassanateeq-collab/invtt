@@ -108,6 +108,9 @@ export const transferStock = (from_item_id: string, to_property_id: string, quan
 export const fulfilRequest = (request_id: string) =>
   callFn("fulfil-request", { request_id });
 
+export const rejectRequest = (request_id: string) =>
+  callFn("reject-request", { request_id });
+
 export interface ItemPatch {
   name?: string;
   unit?: string;

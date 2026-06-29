@@ -3,6 +3,7 @@ import { useState } from "react";
 import { X, Pencil } from "lucide-react";
 import type { Department, ItemStock, Supplier } from "@/lib/types";
 import { adjustStock, updateItem } from "@/lib/api";
+import { UNITS } from "@/lib/units";
 
 const inputCls =
   "w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
@@ -67,7 +68,9 @@ export function EditItemModal({ item, suppliers, departments, onClose, onDone }:
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Unit</label>
-              <input className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="kg, litre, piece" />
+              <select className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)}>
+                {(UNITS.includes(unit) ? UNITS : [unit, ...UNITS]).map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
             </div>
             <div>
               <label className={labelCls}>Type</label>

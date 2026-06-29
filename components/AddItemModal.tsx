@@ -3,6 +3,7 @@ import { useState } from "react";
 import { X, PackagePlus } from "lucide-react";
 import type { Department, Supplier } from "@/lib/types";
 import { createItem } from "@/lib/api";
+import { UNITS } from "@/lib/units";
 
 const inputCls =
   "w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
@@ -68,7 +69,9 @@ export function AddItemModal({ propertyId, branchName, departments, suppliers, d
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Unit</label>
-              <input className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="kg, litre, piece" />
+              <select className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)}>
+                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
             </div>
             <div>
               <label className={labelCls}>Type</label>
