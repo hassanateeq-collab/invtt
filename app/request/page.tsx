@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Box, Search, CheckCircle2, Send, Check, X } from "lucide-react";
 import type { Department, Property } from "@/lib/types";
-import { createRequest, fetchDepartments, fetchProperties, fetchRequestItems, type RequestItem } from "@/lib/api";
+import { createWebOrder, fetchDepartments, fetchProperties, fetchRequestItems, type RequestItem } from "@/lib/api";
 
 const inputCls =
   "w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
@@ -15,6 +15,7 @@ export default function RequestPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [items, setItems] = useState<RequestItem[]>([]);
 
+  const [name, setName] = useState("");
   const [branchId, setBranchId] = useState("");
   const [deptId, setDeptId] = useState("");
   const [query, setQuery] = useState("");
@@ -66,14 +67,18 @@ export default function RequestPage() {
 
   async function submit() {
     setError(null);
+    if (!name.trim()) return setError("Please enter your name.");
     if (!branchId) return setError("Please choose a branch.");
     if (!deptId) return setError("Please choose your department.");
     const lines = cart.filter((c) => c.qty > 0);
     if (lines.length === 0) return setError("Add at least one item with a quantity.");
     setBusy(true);
     try {
-      await Promise.all(lines.map((l) => createRequest(branchId, l.item.id, l.qty, dept?.name ?? "Department", "department")));
-      setDone(`Sent ${lines.length} item${lines.length === 1 ? "" : "s"} to ${dept?.name ?? "the keeper"}`);
+      const res = await createWebOrder({
+        property_id: branchId, department_id: deptId, requester_name: name.trim(),
+        items: lines.map((l) => ({ item_id: l.item.id, quantity: l.qty })),
+      });
+      setDone(`Request #${res.number} sent to ${dept?.name ?? "the keeper"}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn’t send the request.");
     } finally {
@@ -99,7 +104,7 @@ export default function RequestPage() {
             <CheckCircle2 className="mx-auto mb-3 text-emerald-600" size={40} />
             <h2 className="text-base font-semibold text-stone-900">Request sent</h2>
             <p className="mt-1 text-sm text-stone-600">{done}</p>
-            <p className="mt-1 text-xs text-stone-400">The warehouse keeper will see it in their inbox.</p>
+            <p className="mt-1 text-xs text-stone-400">It’s now with the warehouse keeper for approval — you’ll be updated on Slack.</p>
             <button onClick={reset} className="mt-5 rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800">
               Make another request
             </button>
@@ -107,6 +112,12 @@ export default function RequestPage() {
         ) : (
           <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
             <div className="space-y-3">
+              <div>
+                <label className={labelCls}>Your name</label>
+                <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Altamash" autoComplete="name" />
+              </div>
+
               <div>
                 <label className={labelCls}>Branch</label>
                 <select className={inputCls} value={branchId} disabled={locked.branch}

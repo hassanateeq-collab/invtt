@@ -228,3 +228,13 @@ export const createRequest = (
   property_id: string, item_id: string, quantity: number, department: string,
   request_type: "department" | "branch_transfer" = "department",
 ) => callFn("create-request", { property_id, item_id, quantity, department, source: "portal", request_type });
+
+// Public web request → one numbered order (also posts to Slack server-side).
+export interface WebOrderInput {
+  property_id: string;
+  department_id: string;
+  requester_name: string;
+  items: { item_id: string; quantity: number }[];
+}
+export const createWebOrder = (o: WebOrderInput): Promise<{ ok: boolean; number: number }> =>
+  callFn("web-order", o as unknown as Record<string, unknown>);
