@@ -7,7 +7,7 @@ import {
 import type { Area, Department, ItemStock, MovementRow, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, fetchOrders,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, fetchOrders, decideOrder,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -26,6 +26,7 @@ import { AllNotificationsModal } from "@/components/AllNotificationsModal";
 import { UsersModal } from "@/components/UsersModal";
 import { BranchesModal } from "@/components/BranchesModal";
 import { RequestsView } from "@/components/RequestsView";
+import { NotificationToasts, type Toast } from "@/components/NotificationToasts";
 
 type Kind = "all" | "fresh" | "store";
 type Modal = { item: ItemStock; kind: "receive" | "issue" | "adjust" } | null;
@@ -71,6 +72,9 @@ export default function Page() {
   const [toast, setToast] = useState<string | null>(null);
   const [bellBusyId, setBellBusyId] = useState<string | null>(null);
   const seenReqIds = useRef<Set<string> | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [toastBusyKey, setToastBusyKey] = useState<number | null>(null);
+  const toastKey = useRef(0);
 
   const listRef = useRef<HTMLDivElement>(null);
   const requestsRef = useRef<HTMLDivElement>(null);
@@ -79,9 +83,12 @@ export default function Page() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setAuthed(!!data.session); setMyId(data.session?.user.id ?? ""); setAuthReady(true);
+      // Realtime must use the signed-in token, or RLS hides the change events.
+      if (data.session?.access_token) supabase.realtime.setAuth(data.session.access_token);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setAuthed(!!session); setMyId(session?.user.id ?? "");
+      if (session?.access_token) supabase.realtime.setAuth(session.access_token);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -152,27 +159,45 @@ export default function Page() {
     if (hasNew) playBell();
   }, [requests]);
 
-  // Ring the bell when a new Slack/web request order lands.
+  // Ring the bell + pop a toast when a new request order lands (live).
   const seenOrderIds = useRef<Set<string> | null>(null);
   useEffect(() => {
     const ids = new Set(orders.map((o) => o.id));
     if (seenOrderIds.current === null) { seenOrderIds.current = ids; return; }
-    let hasNew = false;
-    ids.forEach((id) => { if (!seenOrderIds.current!.has(id)) hasNew = true; });
+    const fresh = orders.filter((o) => !seenOrderIds.current!.has(o.id) && o.status === "pending");
     seenOrderIds.current = ids;
-    if (hasNew) playBell();
+    if (fresh.length) {
+      playBell();
+      setToasts((prev) => [...prev, ...fresh.map((o) => ({ key: ++toastKey.current, order: o }))]);
+    }
   }, [orders]);
+
+  const dismissToast = (key: number) => setToasts((t) => t.filter((x) => x.key !== key));
+  const openToast = (key: number) => { setView("requests"); dismissToast(key); };
+  async function acceptToast(t: Toast) {
+    setToastBusyKey(t.key);
+    try {
+      await decideOrder(t.order.id, "accept");
+      flash(`Accepted #${t.order.number}`);
+      dismissToast(t.key);
+      await reloadOrders();
+    } catch (e) { flash(e instanceof Error ? e.message : "Could not accept"); }
+    finally { setToastBusyKey(null); }
+  }
 
   // Live updates: realtime on new requests + orders + a 15s safety poll.
   useEffect(() => {
     if (!isKeeper) return;
-    const iv = setInterval(() => { refresh().catch(() => {}); }, 15000);
+    const iv = setInterval(() => { refresh().catch(() => {}); }, 20000);
+    // a light, frequent orders-only poll keeps the inbox live even if a
+    // realtime event is ever missed (the bell/toast only fire on truly new ids)
+    const ivOrders = setInterval(() => { reloadOrders(); }, 6000);
     const ch = supabase.channel("inv-requests")
       .on("postgres_changes", { event: "INSERT", schema: "invtt", table: "requests" }, () => { refresh().catch(() => {}); })
       .on("postgres_changes", { event: "INSERT", schema: "invtt", table: "req_orders" }, () => { reloadOrders(); })
       .on("postgres_changes", { event: "UPDATE", schema: "invtt", table: "req_orders" }, () => { reloadOrders(); })
       .subscribe();
-    return () => { clearInterval(iv); supabase.removeChannel(ch); };
+    return () => { clearInterval(iv); clearInterval(ivOrders); supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isKeeper, propId]);
 
@@ -566,6 +591,8 @@ export default function Page() {
       {toast && (
         <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-stone-900 px-4 py-2.5 text-sm text-white shadow-lg">{toast}</div>
       )}
+      <NotificationToasts toasts={toasts} busyKey={toastBusyKey}
+        onDismiss={dismissToast} onOpen={openToast} onAccept={acceptToast} />
     </div>
   );
 }
