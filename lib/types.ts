@@ -86,6 +86,38 @@ export interface PortalUser {
   created_at: string;
 }
 
+export type OrderStatus = "pending" | "accepted" | "rejected" | "collected";
+
+export interface ReqOrderItem {
+  id: string;
+  order_id: string;
+  item_id: string | null;
+  item_name: string;
+  unit: string | null;
+  quantity: number;
+}
+
+export interface ReqOrder {
+  id: string;
+  number: number;
+  property_id: string | null;
+  department_id: string | null;
+  department_name: string | null;
+  requester_name: string | null;
+  requester_slack_id: string | null;
+  source: "slack" | "web" | "portal";
+  status: OrderStatus;
+  reject_reason: string | null;
+  slack_channel: string | null;
+  slack_thread_ts: string | null;
+  seen_at: string | null;
+  created_at: string;
+  decided_at: string | null;
+  collected_at: string | null;
+  req_order_items: ReqOrderItem[];
+  properties: { code: string; name: string } | null;
+}
+
 export interface MovementRow {
   id: string;
   item_id: string;

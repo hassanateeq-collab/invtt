@@ -1,6 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
-import type { Area, Department, ItemStock, MovementRow, PortalUser, Property, RequestRow, Supplier, Unit } from "./types";
+import type { Area, Department, ItemStock, MovementRow, PortalUser, Property, ReqOrder, RequestRow, Supplier, Unit } from "./types";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -155,6 +155,19 @@ export const upsertProperty = (p: { id?: string; code: string; name: string; is_
   callFn("manage-properties", { action: "upsert", ...p });
 export const deleteProperty = (id: string) =>
   callFn("manage-properties", { action: "delete", id });
+
+// ---- Numbered requests (Slack + web orders) -------------------------------
+export async function fetchOrders(): Promise<ReqOrder[]> {
+  const { data, error } = await supabase
+    .from("req_orders")
+    .select("*, req_order_items(*), properties(code, name)")
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ReqOrder[];
+}
+export const decideOrder = (order_id: string, action: "accept" | "reject" | "collect", reason?: string) =>
+  callFn("order-decision", { order_id, action, reason });
 
 export interface ItemPatch {
   name?: string;

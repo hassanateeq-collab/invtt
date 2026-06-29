@@ -2,12 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
-  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck, Building2,
+  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck, Building2, ClipboardList,
 } from "lucide-react";
-import type { Area, Department, ItemStock, MovementRow, Property, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
+import type { Area, Department, ItemStock, MovementRow, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, fetchOrders,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -25,6 +25,7 @@ import { AreasView } from "@/components/AreasView";
 import { AllNotificationsModal } from "@/components/AllNotificationsModal";
 import { UsersModal } from "@/components/UsersModal";
 import { BranchesModal } from "@/components/BranchesModal";
+import { RequestsView } from "@/components/RequestsView";
 
 type Kind = "all" | "fresh" | "store";
 type Modal = { item: ItemStock; kind: "receive" | "issue" | "adjust" } | null;
@@ -40,6 +41,7 @@ export default function Page() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [deptId, setDeptId] = useState<string>("all");
   const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [orders, setOrders] = useState<ReqOrder[]>([]);
   const [movements, setMovements] = useState<MovementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export default function Page() {
   const [role, setRole] = useState<string | null>(null);
   const isSuperadmin = role === "superadmin";
 
-  const [view, setView] = useState<"inventory" | "suppliers" | "areas">("inventory");
+  const [view, setView] = useState<"inventory" | "suppliers" | "areas" | "requests">("inventory");
   const [kind, setKind] = useState<Kind>("all");
   const [attention, setAttention] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StockStatus | null>(null);
@@ -128,9 +130,10 @@ export default function Page() {
 
   async function refresh(id = propId) {
     if (!id) return;
-    const [it, rq, mv] = await Promise.all([fetchAllItems(), fetchRequests(), fetchMovements(id)]);
-    setAllItems(it); setRequests(rq); setMovements(mv);
+    const [it, rq, mv, or] = await Promise.all([fetchAllItems(), fetchRequests(), fetchMovements(id), fetchOrders()]);
+    setAllItems(it); setRequests(rq); setMovements(mv); setOrders(or);
   }
+  async function reloadOrders() { try { setOrders(await fetchOrders()); } catch {} }
 
   useEffect(() => {
     if (!isKeeper || !propId) return;
@@ -149,12 +152,25 @@ export default function Page() {
     if (hasNew) playBell();
   }, [requests]);
 
-  // Live updates: realtime on new requests + a 15s safety poll.
+  // Ring the bell when a new Slack/web request order lands.
+  const seenOrderIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const ids = new Set(orders.map((o) => o.id));
+    if (seenOrderIds.current === null) { seenOrderIds.current = ids; return; }
+    let hasNew = false;
+    ids.forEach((id) => { if (!seenOrderIds.current!.has(id)) hasNew = true; });
+    seenOrderIds.current = ids;
+    if (hasNew) playBell();
+  }, [orders]);
+
+  // Live updates: realtime on new requests + orders + a 15s safety poll.
   useEffect(() => {
     if (!isKeeper) return;
     const iv = setInterval(() => { refresh().catch(() => {}); }, 15000);
     const ch = supabase.channel("inv-requests")
       .on("postgres_changes", { event: "INSERT", schema: "invtt", table: "requests" }, () => { refresh().catch(() => {}); })
+      .on("postgres_changes", { event: "INSERT", schema: "invtt", table: "req_orders" }, () => { reloadOrders(); })
+      .on("postgres_changes", { event: "UPDATE", schema: "invtt", table: "req_orders" }, () => { reloadOrders(); })
       .subscribe();
     return () => { clearInterval(iv); supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,6 +188,7 @@ export default function Page() {
   const branchAreas = useMemo(
     () => areas.filter((a) => a.property_id === propId).sort((a, b) => a.sort_order - b.sort_order),
     [areas, propId]);
+  const pendingOrders = useMemo(() => orders.filter((o) => o.status === "pending").length, [orders]);
 
   const items = useMemo(() => {
     const inBranch = allItems.filter((i) => i.property_id === propId);
@@ -322,6 +339,13 @@ export default function Page() {
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "areas" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
             <MapPin size={15} /> Storage areas
           </button>
+          <button onClick={() => setView("requests")}
+            className={`relative inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "requests" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
+            <ClipboardList size={15} /> Requests
+            {pendingOrders > 0 && (
+              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">{pendingOrders}</span>
+            )}
+          </button>
         </div>
 
         {error && (
@@ -330,7 +354,10 @@ export default function Page() {
           </div>
         )}
 
-        {view === "suppliers" ? (
+        {view === "requests" ? (
+          <RequestsView orders={orders}
+            onChanged={async (msg) => { flash(msg); await reloadOrders(); await refresh().catch(() => {}); }} />
+        ) : view === "suppliers" ? (
           <SuppliersView suppliers={suppliers} items={allItems} properties={properties}
             onChanged={async (msg) => { flash(msg); try { setSuppliers(await fetchSuppliers()); } catch {} }} />
         ) : view === "areas" ? (
