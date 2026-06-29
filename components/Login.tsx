@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Box, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 const inputCls =
@@ -25,10 +25,11 @@ export function Login() {
     <main className="grid min-h-screen place-items-center px-4">
       <div className="w-full max-w-sm">
         <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-700 text-white"><Box size={20} /></div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/hamsun-logo.svg" alt="Hamsun" className="h-11 w-11" />
           <div>
-            <h1 className="text-lg font-semibold text-stone-900">Hamsun Supply</h1>
-            <p className="text-xs text-stone-500">Warehouse keeper sign in</p>
+            <h1 className="text-lg font-semibold text-stone-900">Supply Chain and Inventory</h1>
+            <p className="text-xs text-stone-500">Hamsun · warehouse keeper sign in</p>
           </div>
         </div>
 

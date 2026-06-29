@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Hamsun Supply",
-  description: "Inventory & supply-chain portal — stock is never typed, only movements are logged.",
+  title: "Supply Chain and Inventory",
+  description: "Hamsun — supply chain & inventory portal. Stock is never typed, only movements are logged.",
+  icons: { icon: "/hamsun-logo.svg", shortcut: "/hamsun-logo.svg", apple: "/hamsun-logo.svg" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

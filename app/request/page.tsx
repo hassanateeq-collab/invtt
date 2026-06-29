@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Box, Search, CheckCircle2, Send, Check, X } from "lucide-react";
+import { Search, CheckCircle2, Send, Check, X } from "lucide-react";
 import type { Department, Property } from "@/lib/types";
 import { createWebOrder, fetchDepartments, fetchProperties, fetchRequestItems, type RequestItem } from "@/lib/api";
 
@@ -92,10 +92,11 @@ export default function RequestPage() {
     <main className="min-h-screen">
       <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-8">
         <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-700 text-white"><Box size={20} /></div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/hamsun-logo.svg" alt="Hamsun" className="h-11 w-11" />
           <div>
             <h1 className="text-lg font-semibold text-stone-900">Request items</h1>
-            <p className="text-xs text-stone-500">Add what you need and send it to the warehouse keeper.</p>
+            <p className="text-xs text-stone-500">Hamsun · supply chain &amp; inventory</p>
           </div>
         </div>
 

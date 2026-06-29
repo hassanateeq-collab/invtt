@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Box, History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
+  History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
   Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck, Building2, ClipboardList,
 } from "lucide-react";
 import type { Area, Department, ItemStock, MovementRow, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
@@ -303,10 +303,11 @@ export default function Page() {
         {/* header */}
         <header className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-700 text-white"><Box size={20} /></div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/hamsun-logo.svg" alt="Hamsun" className="h-11 w-11" />
             <div>
-              <h1 className="text-lg font-semibold text-stone-900">Hamsun Supply</h1>
-              <p className="text-xs text-stone-500">Stock is never typed — only movements are logged.</p>
+              <h1 className="text-lg font-semibold text-stone-900">Supply Chain and Inventory</h1>
+              <p className="text-xs text-stone-500">Hamsun · stock is never typed, only movements are logged.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
