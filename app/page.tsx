@@ -2,12 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
-  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck, Building2, ClipboardList,
+  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck, Building2, ClipboardList, Trash2, AlertTriangle,
 } from "lucide-react";
 import type { Area, Department, ItemStock, MovementRow, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, fetchOrders, decideOrder,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, fetchOrders, decideOrder, deleteItem,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -65,6 +65,8 @@ export default function Page() {
 
   const [modal, setModal] = useState<Modal>(null);
   const [editItem, setEditItem] = useState<ItemStock | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ItemStock | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [hubModal, setHubModal] = useState<HubModal>(null);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [deptMgrOpen, setDeptMgrOpen] = useState(false);
@@ -254,6 +256,18 @@ export default function Page() {
       await refresh();
     } catch (e) { flash(e instanceof Error ? e.message : "Could not fulfil request"); }
     finally { setBellBusyId(null); }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteItem(deleteTarget.id);
+      flash(`Deleted ${deleteTarget.name}`);
+      setDeleteTarget(null);
+      await refresh();
+    } catch (e) { flash(e instanceof Error ? e.message : "Could not delete item"); }
+    finally { setDeleting(false); }
   }
 
   async function onSeenReqs(ids: string[]) {
@@ -567,6 +581,7 @@ export default function Page() {
                         )}
                         <button onClick={() => setModal({ item: i, kind: "adjust" })} className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-stone-500 ring-1 ring-stone-300 hover:bg-stone-50">Adjust</button>
                         <button onClick={() => setEditItem(i)} title="Edit item" className="inline-flex items-center rounded-lg px-2 py-1.5 text-stone-400 ring-1 ring-stone-300 hover:bg-stone-50 hover:text-stone-600"><Pencil size={13} /></button>
+                        <button onClick={() => setDeleteTarget(i)} title="Delete item" className="inline-flex items-center rounded-lg px-2 py-1.5 text-red-500 ring-1 ring-red-200 hover:bg-red-50"><Trash2 size={13} /></button>
                       </div>
                     </div>
                   );
@@ -599,6 +614,23 @@ export default function Page() {
       )}
       {hubModal?.kind === "transfer" && <TransferModal item={hubModal.item} branches={properties} onClose={() => setHubModal(null)} onDone={afterWrite} />}
       {hubModal?.kind === "request" && <RequestModal item={hubModal.item} branchName={branch?.name ?? ""} onClose={() => setHubModal(null)} onDone={afterWrite} />}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-stone-900/50 p-4" onClick={() => !deleting && setDeleteTarget(null)}>
+          <div className="w-full max-w-sm rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertTriangle size={24} /></div>
+            <h2 className="text-base font-semibold text-stone-900">Delete “{deleteTarget.name}”?</h2>
+            <p className="mt-1.5 text-sm text-stone-500">This permanently removes the item and its stock history. This can’t be undone.</p>
+            <div className="mt-5 flex justify-center gap-2">
+              <button onClick={() => setDeleteTarget(null)} disabled={deleting}
+                className="rounded-xl px-5 py-2 text-sm font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50 disabled:opacity-50">Cancel</button>
+              <button onClick={confirmDelete} disabled={deleting}
+                className="rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {diaryOpen && <Diary branchName={branch ? `${branch.code} · ${branch.name}` : ""} movements={movements} properties={properties} onClose={() => setDiaryOpen(false)} />}
       {allNotifOpen && <AllNotificationsModal requests={requests} onClose={() => setAllNotifOpen(false)} />}
       {usersOpen && isSuperadmin && (

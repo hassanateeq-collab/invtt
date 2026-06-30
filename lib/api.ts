@@ -195,6 +195,7 @@ export interface NewItem {
   supplier_id?: string | null;
 }
 export const createItem = (item: NewItem) => callFn("create-item", item as unknown as Record<string, unknown>);
+export const deleteItem = (id: string) => callFn("delete-item", { id });
 
 export const upsertDepartment = (d: { id?: string; property_id?: string; name: string; sort_order?: number }) =>
   callFn("upsert-department", d);
