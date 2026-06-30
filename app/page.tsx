@@ -408,8 +408,8 @@ export default function Page() {
           <SuppliersView suppliers={suppliers} items={allItems} properties={properties}
             onChanged={async (msg) => { flash(msg); try { setSuppliers(await fetchSuppliers()); } catch {} }} />
         ) : view === "areas" ? (
-          <AreasView propertyId={propId} branchName={branch ? `${branch.code} · ${branch.name}` : ""}
-            areas={branchAreas} units={units} items={allItems}
+          <AreasView properties={properties} areas={areas} units={units} items={allItems}
+            defaultBranchId={propId}
             onChanged={async (msg) => { flash(msg); await reloadCatalog(); await refresh().catch(() => {}); }} />
         ) : (
           <>
