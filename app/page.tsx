@@ -351,17 +351,15 @@ export default function Page() {
               className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
               <History size={16} /> <span className="hidden sm:inline">View movement diary</span>
             </button>
-            <div className="flex flex-col items-end">
-              {fullName && (
-                <span className="mb-0.5 hidden max-w-[160px] truncate text-[11px] font-medium text-stone-500 sm:block" title={fullName}>
-                  {fullName}{isSuperadmin ? " · admin" : ""}
-                </span>
-              )}
-              <button onClick={() => supabase.auth.signOut()} title="Sign out"
-                className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-500 hover:bg-stone-50">
-                <LogOut size={16} /> <span className="hidden sm:inline">Sign out</span>
-              </button>
-            </div>
+            {fullName && (
+              <span className="hidden max-w-[160px] items-center truncate px-1 text-sm font-medium text-stone-600 sm:flex" title={fullName}>
+                {fullName}{isSuperadmin ? " · admin" : ""}
+              </span>
+            )}
+            <button onClick={() => supabase.auth.signOut()} title="Sign out"
+              className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-500 hover:bg-stone-50">
+              <LogOut size={16} /> <span className="hidden sm:inline">Sign out</span>
+            </button>
           </div>
         </header>
 
