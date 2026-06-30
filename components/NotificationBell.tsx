@@ -1,15 +1,20 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Bell, ArrowLeftRight, ListChecks } from "lucide-react";
+import { Bell, ArrowLeftRight, ListChecks, Settings, Volume2 } from "lucide-react";
 import type { RequestRow } from "@/lib/types";
 import { fmtDateTime, relativeTime } from "@/lib/format";
+import { playBell } from "@/lib/bell";
 
-export function NotificationBell({ requests, busyId, onIssue, onReject, onSeen, onSeeAll }: {
+const SOUND_LEVELS: [string, number][] = [["Off", 0], ["Low", 0.08], ["Medium", 0.22], ["High", 0.45]];
+
+export function NotificationBell({ requests, busyId, onIssue, onReject, onSeen, onSeeAll, volume, onVolume }: {
   requests: RequestRow[]; busyId: string | null;
   onIssue: (r: RequestRow) => void; onReject: (r: RequestRow, reason: string) => void;
   onSeen: (ids: string[]) => void; onSeeAll: () => void;
+  volume: number; onVolume: (v: number) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [showSound, setShowSound] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
@@ -63,10 +68,30 @@ export function NotificationBell({ requests, busyId, onIssue, onReject, onSeen, 
                   {unreadIds.length > 0 ? `${unreadIds.length} new · ` : ""}{pending.length} pending
                 </p>
               </div>
-              {unreadIds.length > 0 && (
-                <button onClick={() => onSeen(unreadIds)} className="text-xs font-medium text-teal-700 hover:underline">Mark all read</button>
-              )}
+              <div className="flex items-center gap-2">
+                {unreadIds.length > 0 && (
+                  <button onClick={() => onSeen(unreadIds)} className="text-xs font-medium text-teal-700 hover:underline">Mark all read</button>
+                )}
+                <button onClick={() => setShowSound((s) => !s)} title="Sound settings"
+                  className={`rounded-lg p-1.5 ${showSound ? "bg-stone-100 text-stone-700" : "text-stone-400 hover:bg-stone-100 hover:text-stone-600"}`}>
+                  <Settings size={15} />
+                </button>
+              </div>
             </div>
+            {showSound && (
+              <div className="border-b border-stone-100 bg-stone-50 px-4 py-3">
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-stone-600"><Volume2 size={13} /> Notification sound</p>
+                <div className="flex gap-1.5">
+                  {SOUND_LEVELS.map(([label, v]) => (
+                    <button key={label} onClick={() => { onVolume(v); if (v > 0) playBell(v); }}
+                      className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium ring-1 ${volume === v ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[11px] text-stone-400">Tap a level to hear it. Saved on this device.</p>
+              </div>
+            )}
             <div className="max-h-96 overflow-y-auto">
               {ordered.length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-stone-400">No notifications yet.</p>

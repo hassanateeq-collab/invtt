@@ -52,7 +52,10 @@ export default function Page() {
   const [isKeeper, setIsKeeper] = useState<boolean | null>(null);
   const [myId, setMyId] = useState<string>("");
   const [role, setRole] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
   const isSuperadmin = role === "superadmin";
+  const [bellVol, setBellVol] = useState(0.22);
+  const bellVolRef = useRef(0.22);
 
   const [view, setView] = useState<"inventory" | "suppliers" | "areas" | "requests">("inventory");
   const [kind, setKind] = useState<Kind>("all");
@@ -95,16 +98,27 @@ export default function Page() {
 
   // Is the signed-in user an allow-listed keeper? (own profile row visible)
   useEffect(() => {
-    if (!authed) { setIsKeeper(null); setRole(null); return; }
+    if (!authed) { setIsKeeper(null); setRole(null); setFullName(null); return; }
     (async () => {
       try {
-        const { data } = await supabase.from("profiles").select("id, role").limit(1);
+        const { data } = await supabase.from("profiles").select("id, role, full_name").limit(1);
         const me = data && data.length > 0 ? data[0] : null;
         setIsKeeper(!!me);
         setRole((me?.role as string | undefined) ?? null);
-      } catch { setIsKeeper(false); setRole(null); }
+        setFullName((me?.full_name as string | undefined) ?? null);
+      } catch { setIsKeeper(false); setRole(null); setFullName(null); }
     })();
   }, [authed]);
+
+  // Notification-sound volume (per device).
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? localStorage.getItem("bellVol") : null;
+    if (raw !== null) { const v = Number(raw); if (Number.isFinite(v)) { setBellVol(v); bellVolRef.current = v; } }
+  }, []);
+  function changeBellVol(v: number) {
+    setBellVol(v); bellVolRef.current = v;
+    try { localStorage.setItem("bellVol", String(v)); } catch { /* ignore */ }
+  }
 
   // Load reference data once a keeper is signed in.
   useEffect(() => {
@@ -156,7 +170,7 @@ export default function Page() {
     let hasNew = false;
     ids.forEach((id) => { if (!seenReqIds.current!.has(id)) hasNew = true; });
     seenReqIds.current = ids;
-    if (hasNew) playBell();
+    if (hasNew) playBell(bellVolRef.current);
   }, [requests]);
 
   // Ring the bell + pop a toast when a new request order lands (live).
@@ -167,7 +181,7 @@ export default function Page() {
     const fresh = orders.filter((o) => !seenOrderIds.current!.has(o.id) && o.status === "pending");
     seenOrderIds.current = ids;
     if (fresh.length) {
-      playBell();
+      playBell(bellVolRef.current);
       setToasts((prev) => [...prev, ...fresh.map((o) => ({ key: ++toastKey.current, order: o }))]);
     }
   }, [orders]);
@@ -312,7 +326,7 @@ export default function Page() {
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell requests={requests} busyId={bellBusyId} onIssue={onFulfil} onReject={onRejectReq}
-              onSeen={onSeenReqs} onSeeAll={() => setAllNotifOpen(true)} />
+              onSeen={onSeenReqs} onSeeAll={() => setAllNotifOpen(true)} volume={bellVol} onVolume={changeBellVol} />
             {isSuperadmin && (
               <button onClick={() => setUsersOpen(true)} title="Manage users"
                 className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100">
@@ -323,10 +337,17 @@ export default function Page() {
               className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
               <History size={16} /> <span className="hidden sm:inline">View movement diary</span>
             </button>
-            <button onClick={() => supabase.auth.signOut()} title="Sign out"
-              className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-500 hover:bg-stone-50">
-              <LogOut size={16} /> <span className="hidden sm:inline">Sign out</span>
-            </button>
+            <div className="flex flex-col items-end">
+              {fullName && (
+                <span className="mb-0.5 hidden max-w-[160px] truncate text-[11px] font-medium text-stone-500 sm:block" title={fullName}>
+                  {fullName}{isSuperadmin ? " · admin" : ""}
+                </span>
+              )}
+              <button onClick={() => supabase.auth.signOut()} title="Sign out"
+                className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-500 hover:bg-stone-50">
+                <LogOut size={16} /> <span className="hidden sm:inline">Sign out</span>
+              </button>
+            </div>
           </div>
         </header>
 
