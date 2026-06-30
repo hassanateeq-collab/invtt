@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { ClipboardList, FileDown, MessageSquare, Globe, Check, X, PackageCheck } from "lucide-react";
+import { ClipboardList, FileDown, MessageSquare, Globe, Check, X, PackageCheck, Download } from "lucide-react";
 import jsPDF from "jspdf";
 import type { ReqOrder, OrderStatus } from "@/lib/types";
 import { decideOrder } from "@/lib/api";
@@ -25,6 +25,7 @@ export function RequestsView({ orders, onChanged }: {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
 
   const counts = useMemo(() => ({
     all: orders.length,
@@ -48,7 +49,7 @@ export function RequestsView({ orders, onChanged }: {
     finally { setBusyId(null); }
   }
 
-  function downloadPdf(o: ReqOrder) {
+  function buildPdf(o: ReqOrder) {
     const doc = new jsPDF();
     let y = 18;
     doc.setFontSize(16); doc.text(`Stock Request #${o.number}`, 14, y); y += 7;
@@ -72,7 +73,16 @@ export function RequestsView({ orders, onChanged }: {
       y += 6;
       if (y > 280) { doc.addPage(); y = 18; }
     });
-    doc.save(`Request-${o.number}.pdf`);
+    return doc;
+  }
+
+  function openPdf(o: ReqOrder) {
+    const blob = buildPdf(o).output("blob");
+    const url = URL.createObjectURL(blob);
+    setPreview({ url, name: `Request-${o.number}.pdf` });
+  }
+  function closePdf() {
+    setPreview((p) => { if (p) URL.revokeObjectURL(p.url); return null; });
   }
 
   const tabs: [Filter, string][] = [
@@ -135,7 +145,7 @@ export function RequestsView({ orders, onChanged }: {
                 )}
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button onClick={() => downloadPdf(o)}
+                  <button onClick={() => openPdf(o)}
                     className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50">
                     <FileDown size={13} /> PDF
                   </button>
@@ -174,6 +184,24 @@ export function RequestsView({ orders, onChanged }: {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {preview && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-stone-900/60 p-3 sm:p-6" onClick={closePdf}>
+          <div className="flex h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-stone-200 px-4 py-2.5">
+              <span className="flex items-center gap-2 text-sm font-semibold text-stone-700"><FileDown size={15} className="text-teal-700" /> {preview.name}</span>
+              <div className="flex items-center gap-1.5">
+                <a href={preview.url} download={preview.name}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800">
+                  <Download size={14} /> Download
+                </a>
+                <button onClick={closePdf} className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"><X size={18} /></button>
+              </div>
+            </div>
+            <iframe title={preview.name} src={preview.url} className="flex-1 bg-stone-100" />
+          </div>
         </div>
       )}
     </div>
