@@ -329,35 +329,36 @@ export default function Page() {
     <div className="min-h-screen">
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
         {/* header */}
-        <header className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
+        <header className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/hamsun-logo.svg" alt="Hamsun" className="h-11 w-11" />
-            <div>
-              <h1 className="text-lg font-semibold text-stone-900">Supply Chain and Inventory</h1>
-              <p className="text-xs text-stone-500">Hamsun · stock is never typed, only movements are logged.</p>
+            <img src="/hamsun-logo.svg" alt="Hamsun" className="h-9 w-9 shrink-0 sm:h-11 sm:w-11" />
+            <div className="min-w-0">
+              <h1 className="text-base font-semibold leading-tight text-stone-900 sm:text-lg">Supply Chain and Inventory</h1>
+              <p className="hidden text-xs text-stone-500 sm:block">Hamsun · stock is never typed, only movements are logged.</p>
+              {fullName && <p className="truncate text-[11px] text-stone-400 sm:hidden">{fullName}{isSuperadmin ? " · admin" : ""}</p>}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <NotificationBell requests={requests} busyId={bellBusyId} onIssue={onFulfil} onReject={onRejectReq}
               onSeen={onSeenReqs} onSeeAll={() => setAllNotifOpen(true)} volume={bellVol} onVolume={changeBellVol} />
             {isSuperadmin && (
               <button onClick={() => setUsersOpen(true)} title="Manage users"
-                className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100">
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 sm:px-3">
                 <ShieldCheck size={16} /> <span className="hidden sm:inline">Users</span>
               </button>
             )}
-            <button onClick={() => setDiaryOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
-              <History size={16} /> <span className="hidden sm:inline">View movement diary</span>
+            <button onClick={() => setDiaryOpen(true)} title="Movement diary"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-300 bg-white px-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50 sm:px-3">
+              <History size={16} /> <span className="hidden sm:inline">Movement diary</span>
             </button>
             {fullName && (
-              <span className="hidden max-w-[160px] items-center truncate px-1 text-sm font-medium text-stone-600 sm:flex" title={fullName}>
+              <span className="hidden max-w-[160px] items-center truncate px-1 text-sm font-medium text-stone-600 lg:flex" title={fullName}>
                 {fullName}{isSuperadmin ? " · admin" : ""}
               </span>
             )}
             <button onClick={() => supabase.auth.signOut()} title="Sign out"
-              className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-500 hover:bg-stone-50">
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-300 bg-white px-2.5 text-sm font-medium text-stone-500 hover:bg-stone-50 sm:px-3">
               <LogOut size={16} /> <span className="hidden sm:inline">Sign out</span>
             </button>
           </div>
@@ -385,7 +386,8 @@ export default function Page() {
         </div>
 
         {/* view toggle */}
-        <div className="mt-4 inline-flex rounded-xl bg-stone-100 p-1 text-sm">
+        <div className="no-scrollbar mt-4 flex overflow-x-auto">
+        <div className="inline-flex rounded-xl bg-stone-100 p-1 text-sm">
           <button onClick={() => setView("inventory")}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "inventory" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
             <Boxes size={15} /> Inventory
@@ -405,6 +407,7 @@ export default function Page() {
               <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">{pendingOrders}</span>
             )}
           </button>
+        </div>
         </div>
 
         {error && (
@@ -499,15 +502,15 @@ export default function Page() {
 
             {/* filter bar */}
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2">
-                <div className="inline-flex rounded-xl bg-stone-100 p-1 text-sm">
+              <div className="no-scrollbar flex items-center gap-2 overflow-x-auto">
+                <div className="inline-flex shrink-0 rounded-xl bg-stone-100 p-1 text-sm">
                   {([["all", "All"], ["fresh", "Kitchen & fresh"], ["store", "Storeroom"]] as [Kind, string][]).map(([k, lbl]) => (
                     <button key={k} onClick={() => setKind(k)}
-                      className={`rounded-lg px-3 py-1.5 font-medium ${kind === k ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>{lbl}</button>
+                      className={`shrink-0 rounded-lg px-3 py-1.5 font-medium ${kind === k ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>{lbl}</button>
                   ))}
                 </div>
                 <button onClick={() => { setAttention((a) => !a); setStatusFilter(null); }}
-                  className={`rounded-xl px-3 py-1.5 text-sm font-medium ring-1 ${attention ? "bg-amber-50 text-amber-700 ring-amber-200" : "bg-white text-stone-500 ring-stone-300 hover:bg-stone-50"}`}>
+                  className={`shrink-0 rounded-xl px-3 py-1.5 text-sm font-medium ring-1 ${attention ? "bg-amber-50 text-amber-700 ring-amber-200" : "bg-white text-stone-500 ring-stone-300 hover:bg-stone-50"}`}>
                   Needs attention
                 </button>
               </div>
