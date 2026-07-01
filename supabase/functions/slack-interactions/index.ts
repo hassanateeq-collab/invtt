@@ -152,6 +152,7 @@ Deno.serve(async (req) => {
       const qm = {
         qty: v.q, name: v.n, channel: payload.channel?.id,
         thread_ts: payload.message?.thread_ts || payload.message?.ts,
+        button_ts: payload.message?.ts, // the "Choose branch & dept" button message
         requester: payload.user?.name || payload.user?.username || "Someone", slack_id: payload.user?.id,
       };
       await slack("views.open", BOT(), { trigger_id: payload.trigger_id, view: await buildQuickView(qm) });
@@ -244,8 +245,13 @@ Deno.serve(async (req) => {
       item_name: (match as { name?: string })?.name ?? meta.name, unit: (match as { unit?: string })?.unit ?? null, quantity: meta.qty,
     });
     if (meta.channel) {
-      await slack("chat.postMessage", BOT(), { channel: meta.channel, thread_ts: meta.thread_ts, text: `Request #${order.number} submitted`,
-        blocks: [{ type: "section", text: { type: "mrkdwn", text: `📝 *Request #${order.number}* — *${meta.qty} × ${(match as { name?: string })?.name ?? meta.name}* for *${dept.name}* — waiting for approval.` } }] });
+      const conf = [{ type: "section", text: { type: "mrkdwn", text: `📝 *Request #${order.number}* — *${meta.qty} × ${(match as { name?: string })?.name ?? meta.name}* for *${dept.name}* — waiting for approval.` } }];
+      if (meta.button_ts) {
+        // replace the "Choose branch & dept" button with the confirmation (removes the button)
+        await slack("chat.update", BOT(), { channel: meta.channel, ts: meta.button_ts, text: `Request #${order.number} submitted`, blocks: conf });
+      } else {
+        await slack("chat.postMessage", BOT(), { channel: meta.channel, thread_ts: meta.thread_ts, text: `Request #${order.number} submitted`, blocks: conf });
+      }
     }
     return jsonResp({ response_action: "clear" });
   }
