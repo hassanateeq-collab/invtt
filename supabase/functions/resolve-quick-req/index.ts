@@ -1,6 +1,8 @@
-// resolve-quick-req — keeper resolves a branch-less Slack quick request.
-//   issue : attach a branch + item (existing or newly created), issue the
-//           quantity (an 'out' movement) and close the request
+// resolve-quick-req — keeper resolves a Slack quick request.
+//   issue : attach the item (existing or newly created, default the branch's
+//           "Others" tab), mark the request APPROVED, and post a Collect button
+//           into the Slack thread. Stock is NOT subtracted here — it only leaves
+//           when the request is collected (Slack Collect / portal "collect").
 //   reject: mark rejected with a reason
 //
 // Body: { order_id, action:'issue'|'reject', reason?,
@@ -21,14 +23,17 @@ const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 const bad = (m: string, s = 400) => json({ error: m }, s);
 
-async function slack(method: string, payload: unknown) {
+async function slack(method: string, payload: unknown): Promise<{ ok?: boolean; ts?: string } | null> {
   const token = Deno.env.get("SLACK_BOT_TOKEN");
-  if (!token) return;
-  await fetch(`https://slack.com/api/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json; charset=utf-8", Authorization: `Bearer ${token}` },
-    body: JSON.stringify(payload),
-  }).catch(() => ({}));
+  if (!token) return null;
+  try {
+    const r = await fetch(`https://slack.com/api/${method}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+    return await r.json();
+  } catch { return null; }
 }
 
 Deno.serve(async (req) => {
@@ -123,20 +128,27 @@ Deno.serve(async (req) => {
     return bad("Pick an item or add a new one.");
   }
 
-  // issue the stock (out movement) — may go negative, which shows as a reminder
-  await c.from("stock_movements").insert({ item_id, type: "out", quantity: qty,
-    reason: `Issued (req #${order.number}${order.department_name ? ` · for ${order.department_name}` : ""})` });
-
-  // link + close the order — keep the requesting department on the order
+  // Link the now-resolved item to the order and mark it APPROVED — we do NOT
+  // subtract stock here. Stock only leaves when the request is actually
+  // collected (via the Slack Collect button or the portal's "Mark collected").
   await c.from("req_order_items").update({ item_id, item_name, unit }).eq("order_id", order_id);
-  const upd: Record<string, unknown> = { status: "collected", decided_at: new Date().toISOString(), decided_by: _uid, collected_at: new Date().toISOString() };
+  const upd: Record<string, unknown> = { status: "accepted", decided_at: new Date().toISOString(), decided_by: _uid };
   if (!order.property_id) upd.property_id = property_id;
   await c.from("req_orders").update(upd).eq("id", order_id);
 
+  // Post a Collect button into the Slack thread so the requester can collect it.
   if (order.slack_channel && order.slack_thread_ts) {
-    await slack("chat.postMessage", { channel: order.slack_channel, thread_ts: order.slack_thread_ts,
-      text: `Request #${order.number} issued`,
-      blocks: [{ type: "section", text: { type: "mrkdwn", text: `✅ *Request #${order.number}* — issued *${qty} × ${item_name}*.` } }] });
+    const r = await slack("chat.postMessage", {
+      channel: order.slack_channel, thread_ts: order.slack_thread_ts,
+      text: `Request #${order.number} approved`,
+      blocks: [
+        { type: "section", text: { type: "mrkdwn", text: `✅ *Request #${order.number}* approved — added *${qty} × ${item_name}*. Tap *Collect* once you’ve picked it up.` } },
+        { type: "actions", elements: [{ type: "button", style: "primary",
+          text: { type: "plain_text", text: "Collect" }, action_id: "collect_order", value: order_id }] },
+      ],
+    });
+    // remember the Collect-button message so it can be removed once collected
+    if (r?.ts) await c.from("req_orders").update({ slack_collect_ts: r.ts }).eq("id", order_id);
   }
   return json({ ok: true, item_id });
 });

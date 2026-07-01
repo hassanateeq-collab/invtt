@@ -31,9 +31,14 @@ export function OrderDetailModal({ order, properties, departments, items, units,
   const isQuick = order.status === "pending" && !!line && !line.item_id;
   const branchLocked = !!order.property_id;
 
+  // A quick req defaults to the branch's "Others" tab (its id if it exists,
+  // else a sentinel that makes one on the fly) — the keeper can still change it.
+  const othersFor = (branch: string) =>
+    branch ? (departments.find((d) => d.property_id === branch && d.name.trim().toLowerCase() === "others")?.id ?? "__others__") : "";
+
   // resolve state (branch prefilled if the requester already chose it)
   const [branchId, setBranchId] = useState(order.property_id ?? "");
-  const [deptId, setDeptId] = useState(order.department_id ?? "");
+  const [deptId, setDeptId] = useState(order.property_id ? othersFor(order.property_id) : "");
   const [chosenItem, setChosenItem] = useState<string>("");
   const [addNew, setAddNew] = useState(false);
   const [nName, setNName] = useState(reqName);
@@ -117,13 +122,14 @@ export function OrderDetailModal({ order, properties, departments, items, units,
         {/* ---- quick-req resolver ------------------------------------------ */}
         {isQuick ? (
           <div className="border-t border-stone-100 px-5 py-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">Resolve — issue {reqQty} × “{reqName}”</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">Add “{reqName}” &amp; approve — qty {reqQty}</p>
+            <p className="mb-2 text-[11px] text-stone-500">Adds the item, approves the request, and posts a <b>Collect</b> button in Slack. Stock only leaves when it’s collected.</p>
             {branchLocked ? (
               <p className="mb-3 flex items-center gap-1 rounded-lg bg-stone-50 px-2.5 py-1.5 text-xs text-stone-600"><Building2 size={12} /> {order.properties?.code}{order.department_name ? ` · ${order.department_name}` : ""} <span className="text-stone-400">(chosen by requester)</span></p>
             ) : (
               <>
                 <label className="mb-1 block text-xs font-medium text-stone-600">Branch</label>
-                <select value={branchId} onChange={(e) => { setBranchId(e.target.value); setDeptId(""); setChosenItem(""); setAddNew(false); }}
+                <select value={branchId} onChange={(e) => { const b = e.target.value; setBranchId(b); setDeptId(othersFor(b)); setChosenItem(""); setAddNew(false); }}
                   className="mb-2 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
                   <option value="">Choose a branch…</option>
                   {properties.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
@@ -187,10 +193,10 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                       department_id: deptId === "__others__" ? null : (deptId || null),
                       use_others: deptId === "__others__",
                       ...(addNew ? { new_item: { name: nName.trim(), unit: nUnit, type: nType } } : { item_id: chosenItem }),
-                    }), `Issued #${order.number}`)}
+                    }), `Approved #${order.number}`)}
                     disabled={busy || (!addNew && !chosenItem) || (addNew && (!nName.trim() || !deptId))}
                     className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                    <PackageCheck size={15} /> Issue {reqQty}
+                    <PackageCheck size={15} /> Add &amp; approve
                   </button>
                 </div>
               </>
