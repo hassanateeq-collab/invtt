@@ -29,9 +29,10 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const ids = Array.isArray(body.ids) ? body.ids.map(String).filter(Boolean) : [];
   if (!ids.length) return json({ ok: true, updated: 0 });
+  const table = body.kind === "order" ? "req_orders" : "requests";
 
   const { data, error } = await db()
-    .from("requests")
+    .from(table)
     .update({ seen_at: new Date().toISOString() })
     .in("id", ids)
     .is("seen_at", null)

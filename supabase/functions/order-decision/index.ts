@@ -20,14 +20,17 @@ const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 const bad = (m: string, s = 400) => json({ error: m }, s);
 
-async function slack(method: string, payload: unknown) {
+async function slack(method: string, payload: unknown): Promise<{ ok?: boolean; ts?: string } | null> {
   const token = Deno.env.get("SLACK_BOT_TOKEN");
-  if (!token) return; // Slack optional — web/portal requests have no thread
-  await fetch(`https://slack.com/api/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json; charset=utf-8", Authorization: `Bearer ${token}` },
-    body: JSON.stringify(payload),
-  }).catch(() => ({}));
+  if (!token) return null; // Slack optional — web/portal requests have no thread
+  try {
+    const r = await fetch(`https://slack.com/api/${method}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+    return await r.json();
+  } catch { return null; }
 }
 
 Deno.serve(async (req) => {
@@ -54,7 +57,7 @@ Deno.serve(async (req) => {
     if (order.status !== "pending") return bad("This request was already handled.");
     await c.from("req_orders").update({ status: "accepted", decided_at: new Date().toISOString(), decided_by: _uid }).eq("id", order_id);
     if (order.slack_channel && order.slack_thread_ts) {
-      await slack("chat.postMessage", {
+      const r = await slack("chat.postMessage", {
         channel: order.slack_channel, thread_ts: order.slack_thread_ts,
         text: `Request #${order.number} approved`,
         blocks: [
@@ -63,6 +66,9 @@ Deno.serve(async (req) => {
             text: { type: "plain_text", text: "Collect" }, action_id: "collect_order", value: order_id }] },
         ],
       });
+      // remember the Collect-button message so we can remove it if the keeper
+      // collects from the portal instead
+      if (r?.ts) await c.from("req_orders").update({ slack_collect_ts: r.ts }).eq("id", order_id);
     }
     return json({ ok: true });
   }
@@ -94,12 +100,12 @@ Deno.serve(async (req) => {
       });
     }
     await c.from("req_orders").update({ status: "collected", collected_at: new Date().toISOString() }).eq("id", order_id);
-    if (order.slack_channel && order.slack_thread_ts) {
-      await slack("chat.postMessage", {
-        channel: order.slack_channel, thread_ts: order.slack_thread_ts,
-        text: `Request #${order.number} collected`,
-        blocks: [{ type: "section", text: { type: "mrkdwn", text: `📦 *Request #${order.number}* marked collected — stock updated.` } }],
-      });
+    // remove the Slack "Collect" button (edit it in place) so it can't be tapped again
+    const collectedBlock = [{ type: "section", text: { type: "mrkdwn", text: `📦 *Request #${order.number}* collected — stock updated.` } }];
+    if (order.slack_channel && order.slack_collect_ts) {
+      await slack("chat.update", { channel: order.slack_channel, ts: order.slack_collect_ts, text: `Request #${order.number} collected`, blocks: collectedBlock });
+    } else if (order.slack_channel && order.slack_thread_ts) {
+      await slack("chat.postMessage", { channel: order.slack_channel, thread_ts: order.slack_thread_ts, text: `Request #${order.number} collected`, blocks: collectedBlock });
     }
     return json({ ok: true });
   }

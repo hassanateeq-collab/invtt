@@ -133,6 +133,7 @@ export const rejectRequest = (request_id: string, reason: string) =>
 
 // Mark notifications as read (only the still-unread ids are stamped server-side).
 export const markSeen = (ids: string[]) => callFn("mark-seen", { ids });
+export const markOrdersSeen = (ids: string[]) => callFn("mark-seen", { ids, kind: "order" });
 
 // Save this device's Web Push subscription so it receives background alerts.
 export const savePush = (subscription: PushSubscriptionJSON) => callFn("save-push", { subscription });

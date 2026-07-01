@@ -7,7 +7,7 @@ import {
 import type { Area, Department, ItemStock, MovementRow, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, fetchOrders, decideOrder, deleteItem,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -24,11 +24,11 @@ import { TransferModal, RequestModal } from "@/components/HubModals";
 import { Diary } from "@/components/Diary";
 import { SuppliersView } from "@/components/SuppliersView";
 import { AreasView } from "@/components/AreasView";
-import { AllNotificationsModal } from "@/components/AllNotificationsModal";
 import { UsersModal } from "@/components/UsersModal";
 import { BranchesModal } from "@/components/BranchesModal";
 import { RequestsView } from "@/components/RequestsView";
 import { NotificationToasts, type Toast } from "@/components/NotificationToasts";
+import { OrderDetailModal } from "@/components/OrderDetailModal";
 
 type Kind = "all" | "fresh" | "store";
 type Modal = { item: ItemStock; kind: "receive" | "issue" | "adjust" } | null;
@@ -70,11 +70,11 @@ export default function Page() {
   const [editItem, setEditItem] = useState<ItemStock | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ItemStock | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<ReqOrder | null>(null);
   const [hubModal, setHubModal] = useState<HubModal>(null);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [deptMgrOpen, setDeptMgrOpen] = useState(false);
   const [diaryOpen, setDiaryOpen] = useState(false);
-  const [allNotifOpen, setAllNotifOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
   const [branchesOpen, setBranchesOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -308,6 +308,13 @@ export default function Page() {
     try { await markSeen(ids); } catch { /* a later refresh reconciles */ }
   }
 
+  async function onSeenOrders(ids: string[]) {
+    if (!ids.length) return;
+    const now = new Date().toISOString();
+    setOrders((os) => os.map((o) => (ids.includes(o.id) && !o.seen_at ? { ...o, seen_at: now } : o)));
+    try { await markOrdersSeen(ids); } catch { /* a later refresh reconciles */ }
+  }
+
   async function onRejectReq(r: RequestRow, reason: string) {
     setBellBusyId(r.id);
     try {
@@ -370,8 +377,8 @@ export default function Page() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <NotificationBell requests={requests} busyId={bellBusyId} onIssue={onFulfil} onReject={onRejectReq}
-              onSeen={onSeenReqs} onSeeAll={() => setAllNotifOpen(true)} volume={bellVol} onVolume={changeBellVol}
+            <NotificationBell orders={orders} onOpenOrder={(o) => setSelectedOrder(o)}
+              onSeen={onSeenOrders} onSeeAll={() => setView("requests")} volume={bellVol} onVolume={changeBellVol}
               pushStatus={pushStatus} onEnableAlerts={enableAlerts} />
             {isSuperadmin && (
               <button onClick={() => setUsersOpen(true)} title="Manage users"
@@ -662,7 +669,6 @@ export default function Page() {
         </div>
       )}
       {diaryOpen && <Diary branchName={branch ? `${branch.code} · ${branch.name}` : ""} movements={movements} properties={properties} onClose={() => setDiaryOpen(false)} />}
-      {allNotifOpen && <AllNotificationsModal requests={requests} onClose={() => setAllNotifOpen(false)} />}
       {usersOpen && isSuperadmin && (
         <UsersModal myId={myId} onClose={() => setUsersOpen(false)}
           onChanged={(msg) => flash(msg)} />
@@ -677,6 +683,10 @@ export default function Page() {
       )}
       <NotificationToasts toasts={toasts} busyKey={toastBusyKey}
         onDismiss={dismissToast} onOpen={openToast} onAccept={acceptToast} />
+      {selectedOrder && (
+        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)}
+          onChanged={async (msg) => { flash(msg); setSelectedOrder(null); await reloadOrders(); await refresh().catch(() => {}); }} />
+      )}
     </div>
   );
 }
