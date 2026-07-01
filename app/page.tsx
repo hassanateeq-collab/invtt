@@ -143,19 +143,22 @@ export default function Page() {
     };
   }, []);
 
-  // Is the signed-in user an allow-listed keeper? (own profile row visible)
+  // Is the signed-in user an allow-listed keeper, and what is *their* role?
+  // Must look up THIS user's own row (not just any visible profile), or the
+  // portal can wrongly think a keeper is a superadmin and offer actions the
+  // server then refuses.
   useEffect(() => {
-    if (!authed) { setIsKeeper(null); setRole(null); setFullName(null); return; }
+    if (!authed || !myId) { setIsKeeper(authed ? isKeeper : null); setRole(null); setFullName(null); return; }
     (async () => {
       try {
-        const { data } = await supabase.from("profiles").select("id, role, full_name").limit(1);
-        const me = data && data.length > 0 ? data[0] : null;
-        setIsKeeper(!!me);
-        setRole((me?.role as string | undefined) ?? null);
-        setFullName((me?.full_name as string | undefined) ?? null);
+        const { data } = await supabase.from("profiles").select("id, role, full_name").eq("id", myId).maybeSingle();
+        setIsKeeper(!!data);
+        setRole((data?.role as string | undefined) ?? null);
+        setFullName((data?.full_name as string | undefined) ?? null);
       } catch { setIsKeeper(false); setRole(null); setFullName(null); }
     })();
-  }, [authed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed, myId]);
 
   // Notification-sound volume (per device).
   useEffect(() => {
