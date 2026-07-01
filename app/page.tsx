@@ -7,7 +7,7 @@ import {
 import type { Area, Department, ItemStock, MovementRow, Note, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes, updateItem,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -291,6 +291,13 @@ export default function Page() {
       await refresh();
     } catch (e) { flash(e instanceof Error ? e.message : "Could not fulfil request"); }
     finally { setBellBusyId(null); }
+  }
+
+  async function savePrice(id: string, price: number) {
+    // optimistic: update the local item so the value column reflects instantly
+    setAllItems((its) => its.map((x) => (x.id === id ? { ...x, unit_cost: price } : x)));
+    try { await updateItem(id, { unit_cost: price }); }
+    catch (e) { flash(e instanceof Error ? e.message : "Couldn’t save price"); await refresh().catch(() => {}); }
   }
 
   async function confirmDelete() {
@@ -579,10 +586,11 @@ export default function Page() {
             {/* item list */}
             <div ref={listRef} className="mt-3 overflow-hidden rounded-2xl border border-stone-200 bg-white">
               <div className="hidden grid-cols-12 gap-2 border-b border-stone-100 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-stone-400 sm:grid">
-                <div className="col-span-5">Item</div>
+                <div className="col-span-4">Item</div>
                 <div className="col-span-2 text-right">In stock</div>
                 <div className="col-span-1 text-right">Used 7d</div>
                 <div className="col-span-1 text-right">Buy</div>
+                <div className="col-span-1 text-right">Value</div>
                 <div className="col-span-3 text-right">Actions</div>
               </div>
 
@@ -595,7 +603,7 @@ export default function Page() {
                   const exp = i.type === "fresh" ? expiryBadge(i.nearest_expiry) : null;
                   return (
                     <div key={i.id} className="grid grid-cols-1 gap-2 border-b border-stone-100 px-4 py-3 last:border-0 sm:grid-cols-12 sm:items-center">
-                      <div className="sm:col-span-5">
+                      <div className="sm:col-span-4">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium text-stone-900">{i.name}</span>
                           <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${i.type === "fresh" ? "bg-rose-50 text-rose-600" : "bg-stone-100 text-stone-500"}`}>
@@ -625,6 +633,11 @@ export default function Page() {
                       <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
                         <span className="text-xs text-stone-400 sm:hidden">Buy</span>
                         <span className="tnum text-sm font-medium text-teal-700">{i.buy_qty > 0 ? i.buy_qty : "—"}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
+                        <span className="text-xs text-stone-400 sm:hidden">Value</span>
+                        <PriceValueCell item={i} onSave={savePrice} />
                       </div>
 
                       <div className="flex flex-wrap gap-1.5 sm:col-span-3 sm:justify-end">
@@ -708,6 +721,43 @@ export default function Page() {
           onChanged={async (msg) => { flash(msg); setSelectedOrder(null); await reloadOrders(); await refresh().catch(() => {}); }} />
       )}
     </div>
+  );
+}
+
+// Value cell: shows stock value (unit price × current stock) and lets the
+// keeper set the unit price inline by clicking it.
+function PriceValueCell({ item, onSave }: { item: ItemStock; onSave: (id: string, price: number) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(String(item.unit_cost || ""));
+  const money = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const stockValue = Math.max(0, item.current_stock) * (item.unit_cost || 0);
+
+  function commit() {
+    setEditing(false);
+    const n = Math.max(0, Number(val) || 0);
+    if (n !== (item.unit_cost || 0)) void onSave(item.id, n);
+  }
+  if (editing) {
+    return (
+      <input autoFocus type="number" min="0" step="any" value={val}
+        onChange={(e) => setVal(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+        placeholder="unit price"
+        className="w-20 rounded-lg border border-stone-300 px-2 py-1 text-right text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+    );
+  }
+  return (
+    <button onClick={() => { setVal(String(item.unit_cost || "")); setEditing(true); }} title="Set unit price"
+      className="group inline-block text-right">
+      {item.unit_cost > 0 ? (
+        <>
+          <span className="tnum text-sm font-semibold text-teal-700">{money(stockValue)}</span>
+          <div className="text-[10px] text-stone-400 group-hover:text-teal-600">@{money(item.unit_cost)}</div>
+        </>
+      ) : (
+        <span className="text-xs text-stone-400 underline decoration-dotted underline-offset-2 group-hover:text-teal-600">+ price</span>
+      )}
+    </button>
   );
 }
 
