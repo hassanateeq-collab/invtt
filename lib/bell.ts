@@ -21,15 +21,21 @@ if (typeof window !== "undefined") {
 }
 
 function ding(c: AudioContext, at: number, freq: number, peak: number) {
-  const o = c.createOscillator();
   const g = c.createGain();
-  o.type = "sine";
-  o.frequency.setValueAtTime(freq, at);
   g.gain.setValueAtTime(0.0001, at);
   g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), at + 0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.4);
-  o.connect(g); g.connect(c.destination);
-  o.start(at); o.stop(at + 0.42);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.45);
+  g.connect(c.destination);
+
+  // fundamental + a softer octave on top = fuller, louder-sounding chime
+  const o1 = c.createOscillator();
+  o1.type = "sine"; o1.frequency.setValueAtTime(freq, at);
+  o1.connect(g); o1.start(at); o1.stop(at + 0.47);
+
+  const o2 = c.createOscillator();
+  const g2 = c.createGain(); g2.gain.setValueAtTime(0.4, at);
+  o2.type = "triangle"; o2.frequency.setValueAtTime(freq * 2, at);
+  o2.connect(g2); g2.connect(g); o2.start(at); o2.stop(at + 0.47);
 }
 
 // gain ~0.05 (low) … ~0.5 (high). 0 = silent.

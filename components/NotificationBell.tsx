@@ -5,7 +5,7 @@ import type { RequestRow } from "@/lib/types";
 import { fmtDateTime, relativeTime } from "@/lib/format";
 import { playBell } from "@/lib/bell";
 
-const SOUND_LEVELS: [string, number][] = [["Off", 0], ["Low", 0.08], ["Medium", 0.22], ["High", 0.45]];
+const SOUND_LEVELS: [string, number][] = [["Off", 0], ["Low", 0.15], ["Medium", 0.5], ["High", 1.0]];
 
 export function NotificationBell({ requests, busyId, onIssue, onReject, onSeen, onSeeAll, volume, onVolume, pushStatus, onEnableAlerts }: {
   requests: RequestRow[]; busyId: string | null;
