@@ -42,6 +42,8 @@ export function OrderDetailModal({ order, properties, departments, items, units,
   const [pick, setPick] = useState("");
 
   const branchDepts = useMemo(() => departments.filter((d) => d.property_id === branchId), [departments, branchId]);
+  const hasOthers = useMemo(() => branchDepts.some((d) => d.name.trim().toLowerCase() === "others"), [branchDepts]);
+  const targetDeptName = useMemo(() => branchDepts.find((d) => d.id === deptId)?.name ?? "Others", [branchDepts, deptId]);
   const branchItems = useMemo(() => items.filter((i) => i.property_id === branchId), [items, branchId]);
   const matches = useMemo(() => {
     if (!branchId) return [];
@@ -117,7 +119,11 @@ export function OrderDetailModal({ order, properties, departments, items, units,
             ) : (
               <>
                 <label className="mb-1 block text-xs font-medium text-stone-600">Branch</label>
-                <select value={branchId} onChange={(e) => { setBranchId(e.target.value); setDeptId(""); setChosenItem(""); setAddNew(false); }}
+                <select value={branchId} onChange={(e) => {
+                    const bid = e.target.value;
+                    const others = departments.find((d) => d.property_id === bid && d.name.trim().toLowerCase() === "others");
+                    setBranchId(bid); setDeptId(others?.id ?? ""); setChosenItem(""); setAddNew(false);
+                  }}
                   className="mb-2 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
                   <option value="">Choose a branch…</option>
                   {properties.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
@@ -127,16 +133,12 @@ export function OrderDetailModal({ order, properties, departments, items, units,
 
             {branchId && (
               <>
-                {!branchLocked && (
-                  <>
-                    <label className="mb-1 block text-xs font-medium text-stone-600">Department</label>
-                    <select value={deptId} onChange={(e) => setDeptId(e.target.value)}
-                      className="mb-3 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
-                      <option value="">— none —</option>
-                      {branchDepts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
-                  </>
-                )}
+                <label className="mb-1 block text-xs font-medium text-stone-600">Put it in which department?</label>
+                <select value={deptId} onChange={(e) => setDeptId(e.target.value)}
+                  className="mb-3 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
+                  {branchDepts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  {!hasOthers && <option value="">Others (unique items)</option>}
+                </select>
 
                 {!addNew ? (
                   <>
@@ -161,7 +163,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                 ) : (
                   <div className="rounded-xl border border-dashed border-teal-300 bg-teal-50/40 p-3">
                     <p className="mb-1 text-xs font-semibold text-teal-800">New item</p>
-                    <p className="mb-2 text-[11px] text-stone-500">Added to this branch’s <b>Others</b> department.</p>
+                    <p className="mb-2 text-[11px] text-stone-500">Will be added to <b>{targetDeptName}</b> in this branch.</p>
                     <input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="Item name"
                       className="mb-2 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-teal-600" />
                     <div className="flex gap-2">

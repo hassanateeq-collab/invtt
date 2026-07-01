@@ -73,14 +73,16 @@ Deno.serve(async (req) => {
   const qty = Math.max(0, Number(line?.quantity) || 0);
   if (qty <= 0) return bad("This request has no quantity.");
 
-  // quick-req items always live in the branch's "Others" department (make it if missing)
-  let othersId: string | null = null;
-  {
+  // Where should the item live? Whatever department the keeper picked in the
+  // portal. If they left it blank, drop it into the branch's "Others" bucket
+  // (created on demand) — the catch-all for unique / one-off items.
+  let targetDept: string | null = department_id;
+  if (!targetDept) {
     const { data: od } = await c.from("departments").select("id").eq("property_id", property_id).ilike("name", "others").maybeSingle();
-    if (od) othersId = od.id;
+    if (od) targetDept = od.id;
     else {
       const { data: nd } = await c.from("departments").insert({ property_id, name: "Others", sort_order: 900 }).select("id").maybeSingle();
-      othersId = nd?.id ?? null;
+      targetDept = nd?.id ?? null;
     }
   }
 
@@ -103,7 +105,7 @@ Deno.serve(async (req) => {
       product_id = np?.id ?? null;
     }
     const { data: it, error: itErr } = await c.from("items").insert({
-      property_id, department_id: othersId ?? department_id, product_id, name, unit, type,
+      property_id, department_id: targetDept, product_id, name, unit, type,
       par_level: Math.max(0, Number(ni.par_level) || 0),
       reorder_point: Math.max(0, Number(ni.reorder_point) || 0),
       unit_cost: Math.max(0, Number(ni.unit_cost) || 0),
