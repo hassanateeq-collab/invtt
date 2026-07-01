@@ -98,10 +98,10 @@ export function RequestsView({ orders, onChanged }: {
       <div className="mb-3 flex items-center gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-stone-700"><ClipboardList size={16} className="text-teal-700" /> Requests</h2>
       </div>
-      <div className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto">
+      <div className="mb-3 flex flex-wrap gap-1.5">
         {tabs.map(([f, lbl]) => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-sm ring-1 ${filter === f ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+            className={`rounded-full px-3 py-1.5 text-sm ring-1 ${filter === f ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
             {lbl}
           </button>
         ))}

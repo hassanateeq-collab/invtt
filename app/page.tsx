@@ -365,49 +365,47 @@ export default function Page() {
         </header>
 
         {/* branch tabs */}
-        <div className="no-scrollbar mt-5 flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="mt-5 flex flex-wrap items-center gap-2">
           {properties.map((p) => {
             const active = p.id === propId;
             return (
               <button key={p.id} onClick={() => { setPropId(p.id); setStatusFilter(null); setAttention(false); setDeptId("all"); }}
-                className={`shrink-0 rounded-full px-4 py-2 text-sm ring-1 transition ${active ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
-                <span className="font-semibold">{p.code}</span>{" "}
-                <span className={active ? "text-teal-100" : "text-stone-400"}>{p.name}</span>
+                className={`rounded-full px-3.5 py-2 text-sm ring-1 transition sm:px-4 ${active ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+                <span className="font-semibold">{p.code}</span>
+                <span className={`hidden sm:inline ${active ? "text-teal-100" : "text-stone-400"}`}> {p.name}</span>
                 {p.is_hub && <span className={`ml-1.5 rounded px-1 text-[10px] ${active ? "bg-white/20" : "bg-teal-50 text-teal-700"}`}>HUB</span>}
               </button>
             );
           })}
           {isSuperadmin && (
             <button onClick={() => setBranchesOpen(true)} title="Add / edit / delete branches"
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100">
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100">
               <Building2 size={15} /> <span className="hidden sm:inline">Branches</span>
             </button>
           )}
         </div>
 
         {/* view toggle */}
-        <div className="no-scrollbar mt-4 flex overflow-x-auto">
-        <div className="inline-flex rounded-xl bg-stone-100 p-1 text-sm">
+        <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 text-sm sm:inline-flex sm:gap-0">
           <button onClick={() => setView("inventory")}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "inventory" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "inventory" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
             <Boxes size={15} /> Inventory
           </button>
           <button onClick={() => setView("suppliers")}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "suppliers" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "suppliers" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
             <Truck size={15} /> Suppliers &amp; orders
           </button>
           <button onClick={() => setView("areas")}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "areas" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "areas" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
             <MapPin size={15} /> Storage areas
           </button>
           <button onClick={() => setView("requests")}
-            className={`relative inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "requests" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
+            className={`relative inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "requests" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
             <ClipboardList size={15} /> Requests
             {pendingOrders > 0 && (
               <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">{pendingOrders}</span>
             )}
           </button>
-        </div>
         </div>
 
         {error && (
@@ -429,15 +427,15 @@ export default function Page() {
         ) : (
           <>
             {/* department tabs */}
-            <div className="mt-4 flex items-center gap-2">
-              <div className="no-scrollbar flex flex-1 gap-2 overflow-x-auto">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <div className="flex flex-1 flex-wrap gap-2">
                 <button onClick={() => setDeptId("all")}
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-sm ring-1 ${deptId === "all" ? "bg-stone-800 text-white ring-stone-800" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+                  className={`rounded-full px-3 py-1.5 text-sm ring-1 ${deptId === "all" ? "bg-stone-800 text-white ring-stone-800" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
                   All
                 </button>
                 {branchDepts.map((d) => (
                   <button key={d.id} onClick={() => setDeptId(d.id)}
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-sm ring-1 ${deptId === d.id ? "bg-stone-800 text-white ring-stone-800" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+                    className={`rounded-full px-3 py-1.5 text-sm ring-1 ${deptId === d.id ? "bg-stone-800 text-white ring-stone-800" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
                     {d.name}
                   </button>
                 ))}
@@ -502,11 +500,11 @@ export default function Page() {
 
             {/* filter bar */}
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="no-scrollbar flex items-center gap-2 overflow-x-auto">
-                <div className="inline-flex shrink-0 rounded-xl bg-stone-100 p-1 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-xl bg-stone-100 p-1 text-sm">
                   {([["all", "All"], ["fresh", "Kitchen & fresh"], ["store", "Storeroom"]] as [Kind, string][]).map(([k, lbl]) => (
                     <button key={k} onClick={() => setKind(k)}
-                      className={`shrink-0 rounded-lg px-3 py-1.5 font-medium ${kind === k ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>{lbl}</button>
+                      className={`rounded-lg px-3 py-1.5 font-medium ${kind === k ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>{lbl}</button>
                   ))}
                 </div>
                 <button onClick={() => { setAttention((a) => !a); setStatusFilter(null); }}
