@@ -7,7 +7,7 @@ import {
 import type { Area, Department, ItemStock, MovementRow, Note, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes, updateItem, resetUsage,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes, updateItem, setUsage,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -358,11 +358,12 @@ export default function Page() {
     catch (e) { flash(e instanceof Error ? e.message : "Couldn’t save price"); await refresh().catch(() => {}); }
   }
 
-  // Superadmin: reset an item's "Used 7d" figure to zero (optimistic).
-  async function onResetUsage(item: ItemStock) {
-    setAllItems((its) => its.map((x) => (x.id === item.id ? { ...x, used_7d: 0 } : x)));
-    try { await resetUsage(item.id); flash(`Reset “Used 7d” for ${item.name}`); }
-    catch (e) { flash(e instanceof Error ? e.message : "Couldn’t reset usage"); await refresh().catch(() => {}); }
+  // Superadmin: set an item's "Used" (all-time) figure to any value (optimistic).
+  async function onSetUsage(item: ItemStock, value: number) {
+    const v = Math.max(0, Math.round(value));
+    setAllItems((its) => its.map((x) => (x.id === item.id ? { ...x, used_7d: v } : x)));
+    try { await setUsage(item.id, v); flash(`Set usage for ${item.name} to ${v}`); }
+    catch (e) { flash(e instanceof Error ? e.message : "Couldn’t update usage"); await refresh().catch(() => {}); }
   }
 
   async function confirmDelete() {
@@ -653,7 +654,7 @@ export default function Page() {
               <div className="hidden grid-cols-12 gap-2 border-b border-stone-100 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-stone-400 sm:grid">
                 <div className="col-span-4">Item</div>
                 <div className="col-span-2 text-right">In stock</div>
-                <div className="col-span-1 text-right">Used 7d</div>
+                <div className="col-span-1 text-right">Used</div>
                 <div className="col-span-1 text-right">Buy</div>
                 <div className="col-span-1 text-right">Value</div>
                 <div className="col-span-3 text-right">Actions</div>
@@ -691,14 +692,8 @@ export default function Page() {
                       </div>
 
                       <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
-                        <span className="text-xs text-stone-400 sm:hidden">Used 7d</span>
-                        <span className="tnum text-sm text-stone-500">{i.used_7d}</span>
-                        {isSuperadmin && i.used_7d > 0 && (
-                          <button onClick={() => onResetUsage(i)} title="Reset Used 7d to 0"
-                            className="ml-1.5 rounded px-1 py-0.5 text-[10px] font-medium text-amber-600 ring-1 ring-amber-200 hover:bg-amber-50 sm:ml-0 sm:mt-0.5 sm:block">
-                            reset →0
-                          </button>
-                        )}
+                        <span className="text-xs text-stone-400 sm:hidden">Used</span>
+                        <UsageCell item={i} canEdit={isSuperadmin} onSet={onSetUsage} />
                       </div>
 
                       <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
@@ -830,6 +825,35 @@ function PriceValueCell({ item, onSave }: { item: ItemStock; onSave: (id: string
       )}
     </button>
   );
+}
+
+// Used cell: shows all-time usage. For a superadmin it's editable inline —
+// click the number, type any value, Enter to save.
+function UsageCell({ item, canEdit, onSet }: { item: ItemStock; canEdit: boolean; onSet: (item: ItemStock, value: number) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(String(item.used_7d ?? 0));
+  function commit() {
+    setEditing(false);
+    const n = Math.max(0, Math.round(Number(val) || 0));
+    if (n !== (item.used_7d ?? 0)) void onSet(item, n);
+  }
+  if (canEdit && editing) {
+    return (
+      <input autoFocus type="number" min="0" step="1" value={val}
+        onChange={(e) => setVal(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+        className="w-16 rounded-lg border border-stone-300 px-2 py-1 text-right text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+    );
+  }
+  if (canEdit) {
+    return (
+      <button onClick={() => { setVal(String(item.used_7d ?? 0)); setEditing(true); }} title="Set usage"
+        className="tnum text-sm text-stone-500 underline decoration-dotted underline-offset-2 hover:text-teal-700">
+        {item.used_7d}
+      </button>
+    );
+  }
+  return <span className="tnum text-sm text-stone-500">{item.used_7d}</span>;
 }
 
 function Card({ label, value, Icon, tone, onClick }: {

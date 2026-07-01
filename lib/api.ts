@@ -122,8 +122,8 @@ export const issueStock = (item_id: string, quantity: number, reason: string) =>
 export const adjustStock = (item_id: string, quantity: number, reason: string) =>
   callFn("adjust-stock", { item_id, quantity, reason });
 
-// Superadmin only: reset an item's "Used 7d" figure to zero.
-export const resetUsage = (item_id: string) => callFn("reset-usage", { item_id });
+// Superadmin only: set an item's "Used" (all-time usage) figure to any value.
+export const setUsage = (item_id: string, value: number) => callFn("reset-usage", { item_id, value });
 
 export const transferStock = (from_item_id: string, to_property_id: string, quantity: number, reason?: string) =>
   callFn("transfer-stock", { from_item_id, to_property_id, quantity, reason });

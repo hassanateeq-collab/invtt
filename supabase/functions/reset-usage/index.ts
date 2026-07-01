@@ -1,7 +1,8 @@
-// reset-usage — superadmin resets an item's "Used 7d" figure to zero.
-// Stamps items.usage_reset_at = now() so the view stops counting older 'out'
-// movements toward the 7-day usage. Stock on hand and history are untouched.
-// Body: { item_id }
+// reset-usage — superadmin sets an item's "Used" (all-time usage) figure.
+// Sets usage_baseline to the requested value (default 0) and stamps
+// usage_reset_at = now(), so the shown usage becomes exactly that value and
+// then counts up again from new 'out' movements. Stock on hand is untouched.
+// Body: { item_id, value? }   // value omitted => reset to 0
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const cors = {
@@ -33,9 +34,12 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const item_id = String(body.item_id ?? "");
   if (!item_id) return bad("item_id is required");
+  const value = Math.max(0, Number(body.value) || 0);
 
   const c = db();
-  const { error } = await c.from("items").update({ usage_reset_at: new Date().toISOString() }).eq("id", item_id);
+  const { error } = await c.from("items")
+    .update({ usage_baseline: value, usage_reset_at: new Date().toISOString() })
+    .eq("id", item_id);
   if (error) return bad(error.message, 500);
 
   const { data: updated } = await c.from("v_item_stock").select("*").eq("id", item_id).single();
