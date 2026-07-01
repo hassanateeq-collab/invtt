@@ -466,7 +466,7 @@ export default function Page() {
         )}
 
         {view === "requests" ? (
-          <RequestsView orders={orders}
+          <RequestsView orders={orders} onOpen={(o) => setSelectedOrder(o)}
             onChanged={async (msg) => { flash(msg); await reloadOrders(); await refresh().catch(() => {}); }} />
         ) : view === "notes" ? (
           <NotesView notes={notes} items={allItems} properties={properties}
@@ -703,7 +703,8 @@ export default function Page() {
       <NotificationToasts toasts={toasts} busyKey={toastBusyKey}
         onDismiss={dismissToast} onOpen={openToast} onAccept={acceptToast} />
       {selectedOrder && (
-        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)}
+        <OrderDetailModal order={selectedOrder} properties={properties} departments={departments} items={allItems} units={units}
+          onClose={() => setSelectedOrder(null)}
           onChanged={async (msg) => { flash(msg); setSelectedOrder(null); await reloadOrders(); await refresh().catch(() => {}); }} />
       )}
     </div>

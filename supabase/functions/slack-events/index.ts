@@ -1,10 +1,18 @@
 // slack-events — Slack Event Subscriptions endpoint.
-// Detects a bare "req" message (any casing) in the channel, deletes it
-// (needs an admin user token), and posts a "Start request" button.
+//   "req"                 -> post the "Start request" button (guided form)
+//   "req <number> <name>" -> quick branch-less request the keeper resolves
+// A number is required for the quick form; "req cables" (no number) is ignored.
 //
-// Secrets: SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, SLACK_ADMIN_USER_TOKEN (opt)
+// Secrets: SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, SLACK_REQUEST_CHANNEL (opt),
+//          SLACK_ADMIN_USER_TOKEN (opt), SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const SIGNING = () => Deno.env.get("SLACK_SIGNING_SECRET")!;
 const BOT = () => Deno.env.get("SLACK_BOT_TOKEN")!;
+const db = () =>
+  createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    db: { schema: "invtt" }, auth: { persistSession: false },
+  });
 
 async function verify(req: Request, body: string): Promise<boolean> {
   const ts = req.headers.get("x-slack-request-timestamp") ?? "";
@@ -25,13 +33,24 @@ async function slack(method: string, token: string, payload: unknown) {
   });
   return await r.json();
 }
+async function slackGet(method: string, token: string, params: Record<string, string>) {
+  const u = new URL(`https://slack.com/api/${method}`);
+  Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
+  const r = await fetch(u, { headers: { Authorization: `Bearer ${token}` } });
+  return r.json();
+}
+async function displayName(userId: string): Promise<string> {
+  try {
+    const info = await slackGet("users.info", BOT(), { user: userId });
+    return info?.user?.profile?.real_name || info?.user?.real_name || info?.user?.name || "Someone";
+  } catch { return "Someone"; }
+}
 
 Deno.serve(async (req) => {
   const body = await req.text();
   let data: Record<string, unknown> = {};
   try { data = JSON.parse(body || "{}"); } catch { /* ignore */ }
 
-  // URL verification handshake (Slack does this once, unsigned)
   if (data.type === "url_verification") {
     return new Response(String(data.challenge ?? ""), { headers: { "Content-Type": "text/plain" } });
   }
@@ -39,32 +58,48 @@ Deno.serve(async (req) => {
 
   if (data.type === "event_callback") {
     const e = (data.event ?? {}) as Record<string, unknown>;
-    // only real human messages (skip bot posts, edits, joins, etc.)
     if (e.type === "message" && !e.bot_id && !e.subtype) {
-      const text = String(e.text ?? "").trim().toLowerCase();
+      const raw = String(e.text ?? "").trim();
       const channel = String(e.channel ?? "");
-      // Only react in the configured requests channel (ignore any others the
-      // bot happens to be in). If unset, react anywhere the bot is added.
+      const user = String(e.user ?? "");
       const onlyChannel = Deno.env.get("SLACK_REQUEST_CHANNEL");
-      if (text === "req" && (!onlyChannel || channel === onlyChannel)) {
-        const user = String(e.user ?? "");
+      const inScope = !onlyChannel || channel === onlyChannel;
+
+      // bare "req" -> guided button
+      if (inScope && raw.toLowerCase() === "req") {
         const adminToken = Deno.env.get("SLACK_ADMIN_USER_TOKEN");
-        if (adminToken) {
-          await slack("chat.delete", adminToken, { channel, ts: e.ts }).catch(() => ({}));
-        }
+        if (adminToken) await slack("chat.delete", adminToken, { channel, ts: e.ts }).catch(() => ({}));
         await slack("chat.postMessage", BOT(), {
-          channel,
-          thread_ts: e.ts, // reply inside the thread of the "req" message
-          text: "Start your stock request",
+          channel, thread_ts: e.ts, text: "Start your stock request",
           blocks: [
             { type: "section", text: { type: "mrkdwn", text: `<@${user}> tap below to start your stock request 👇` } },
-            { type: "actions", elements: [{
-              type: "button", style: "primary",
-              text: { type: "plain_text", text: "Start request" },
-              action_id: "start_request", value: user,
-            }] },
+            { type: "actions", elements: [{ type: "button", style: "primary",
+              text: { type: "plain_text", text: "Start request" }, action_id: "start_request", value: user }] },
           ],
         });
+        return new Response("ok");
+      }
+
+      // "req <number> <item name>" -> quick, branch-less request
+      const m = inScope ? raw.match(/^req\s+(\d+(?:[.,]\d+)?)\s+(.+)$/i) : null;
+      if (m) {
+        const qty = parseFloat(m[1].replace(",", "."));
+        const itemName = m[2].trim();
+        if (Number.isFinite(qty) && qty > 0 && itemName) {
+          const name = await displayName(user);
+          const c = db();
+          const { data: order } = await c.from("req_orders").insert({
+            requester_name: name, requester_slack_id: user, source: "slack",
+            slack_channel: channel, slack_thread_ts: e.ts,
+          }).select("id, number").single();
+          if (order) {
+            await c.from("req_order_items").insert({ order_id: order.id, item_id: null, item_name: itemName, unit: null, quantity: qty });
+            await slack("chat.postMessage", BOT(), {
+              channel, thread_ts: e.ts, text: `Request #${order.number} received`,
+              blocks: [{ type: "section", text: { type: "mrkdwn", text: `📝 *Request #${order.number}* — *${qty} × ${itemName}* — sent to the keeper for approval.` } }],
+            });
+          }
+        }
       }
     }
   }

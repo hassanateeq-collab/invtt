@@ -173,6 +173,17 @@ export async function fetchOrders(): Promise<ReqOrder[]> {
 export const decideOrder = (order_id: string, action: "accept" | "reject" | "collect", reason?: string) =>
   callFn("order-decision", { order_id, action, reason });
 
+export interface ResolveQuickReq {
+  order_id: string;
+  action: "issue" | "reject";
+  reason?: string;
+  property_id?: string;
+  department_id?: string | null;
+  item_id?: string;
+  new_item?: { name: string; unit?: string; type?: "fresh" | "store"; par_level?: number; reorder_point?: number; unit_cost?: number };
+}
+export const resolveQuickReq = (r: ResolveQuickReq) => callFn("resolve-quick-req", r as unknown as Record<string, unknown>);
+
 // ---- Notes ----------------------------------------------------------------
 export async function fetchNotes(): Promise<Note[]> {
   const { data, error } = await supabase

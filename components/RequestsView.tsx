@@ -18,8 +18,8 @@ const statusWord: Record<OrderStatus, string> = {
   pending: "Pending", accepted: "Accepted · awaiting collect", rejected: "Rejected", collected: "Collected",
 };
 
-export function RequestsView({ orders, onChanged }: {
-  orders: ReqOrder[]; onChanged: (msg: string) => void;
+export function RequestsView({ orders, onChanged, onOpen }: {
+  orders: ReqOrder[]; onChanged: (msg: string) => void; onOpen: (o: ReqOrder) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -150,7 +150,13 @@ export function RequestsView({ orders, onChanged }: {
                     <FileDown size={13} /> PDF
                   </button>
 
-                  {o.status === "pending" && (rejectingId === o.id ? (
+                  {o.status === "pending" && !o.property_id && (
+                    <button onClick={() => onOpen(o)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-700">
+                      ⚡ Resolve (pick branch)
+                    </button>
+                  )}
+                  {o.status === "pending" && o.property_id && (rejectingId === o.id ? (
                     <div className="flex flex-1 items-center gap-2">
                       <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && reason.trim() && act(o, "reject", reason.trim())}
