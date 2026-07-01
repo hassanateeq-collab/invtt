@@ -67,11 +67,22 @@ Deno.serve(async (req) => {
 
   if (action !== "issue") return bad("Unknown action");
 
-  const property_id = String(body.property_id ?? "");
+  const property_id = String(body.property_id ?? order.property_id ?? "");
   if (!property_id) return bad("Pick a branch first.");
   const department_id = body.department_id ? String(body.department_id) : null;
   const qty = Math.max(0, Number(line?.quantity) || 0);
   if (qty <= 0) return bad("This request has no quantity.");
+
+  // quick-req items always live in the branch's "Others" department (make it if missing)
+  let othersId: string | null = null;
+  {
+    const { data: od } = await c.from("departments").select("id").eq("property_id", property_id).ilike("name", "others").maybeSingle();
+    if (od) othersId = od.id;
+    else {
+      const { data: nd } = await c.from("departments").insert({ property_id, name: "Others", sort_order: 900 }).select("id").maybeSingle();
+      othersId = nd?.id ?? null;
+    }
+  }
 
   // resolve the item: use the chosen one, or create a new item in the branch
   let item_id = body.item_id ? String(body.item_id) : "";
@@ -92,7 +103,7 @@ Deno.serve(async (req) => {
       product_id = np?.id ?? null;
     }
     const { data: it, error: itErr } = await c.from("items").insert({
-      property_id, department_id, product_id, name, unit, type,
+      property_id, department_id: othersId ?? department_id, product_id, name, unit, type,
       par_level: Math.max(0, Number(ni.par_level) || 0),
       reorder_point: Math.max(0, Number(ni.reorder_point) || 0),
       unit_cost: Math.max(0, Number(ni.unit_cost) || 0),
@@ -108,14 +119,14 @@ Deno.serve(async (req) => {
   }
 
   // issue the stock (out movement) — may go negative, which shows as a reminder
-  await c.from("stock_movements").insert({ item_id, type: "out", quantity: qty, reason: `Issued via Slack quick request (#${order.number})` });
+  await c.from("stock_movements").insert({ item_id, type: "out", quantity: qty,
+    reason: `Issued (req #${order.number}${order.department_name ? ` · for ${order.department_name}` : ""})` });
 
-  // link + close the order
+  // link + close the order — keep the requesting department on the order
   await c.from("req_order_items").update({ item_id, item_name, unit }).eq("order_id", order_id);
-  await c.from("req_orders").update({
-    property_id, department_id, status: "collected",
-    decided_at: new Date().toISOString(), decided_by: _uid, collected_at: new Date().toISOString(),
-  }).eq("id", order_id);
+  const upd: Record<string, unknown> = { status: "collected", decided_at: new Date().toISOString(), decided_by: _uid, collected_at: new Date().toISOString() };
+  if (!order.property_id) upd.property_id = property_id;
+  await c.from("req_orders").update(upd).eq("id", order_id);
 
   if (order.slack_channel && order.slack_thread_ts) {
     await slack("chat.postMessage", { channel: order.slack_channel, thread_ts: order.slack_thread_ts,

@@ -42,7 +42,7 @@ const jsonResp = (b: unknown) => new Response(JSON.stringify(b), { headers: { "C
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 type Meta = {
-  name?: string; slack_id?: string; channel?: string; button_ts?: string;
+  name?: string; slack_id?: string; channel?: string; button_ts?: string; thread_ts?: string;
   department_id?: string; department_name?: string; property_id?: string | null;
   cart?: { id: string; name: string; unit: string; qty: string }[];
 };
@@ -142,7 +142,10 @@ Deno.serve(async (req) => {
 
     if (action.action_id === "start_request") {
       const m: Meta = { name: payload.user?.name || payload.user?.username || "Someone", slack_id: payload.user?.id,
-        channel: payload.channel?.id, button_ts: payload.message?.thread_ts || payload.message?.ts, cart: [] };
+        channel: payload.channel?.id,
+        thread_ts: payload.message?.thread_ts || payload.message?.ts, // thread root (the "req" message)
+        button_ts: payload.message?.ts,                               // the Start-request button message
+        cart: [] };
       await slack("views.open", BOT(), { trigger_id: payload.trigger_id, view: await buildView(m) });
       return ok();
     }
@@ -206,13 +209,15 @@ Deno.serve(async (req) => {
     const { data: order, error } = await c.from("req_orders").insert({
       property_id: meta.property_id ?? null, department_id: meta.department_id, department_name: meta.department_name ?? "",
       requester_name: meta.name ?? "", requester_slack_id: meta.slack_id ?? null, source: "slack",
-      slack_channel: meta.channel ?? null, slack_thread_ts: meta.button_ts ?? null,
+      slack_channel: meta.channel ?? null, slack_thread_ts: meta.thread_ts ?? null,
     }).select("id, number").single();
     if (error || !order) return jsonResp({ response_action: "errors", errors: { additem: "Could not save — please try again." } });
     await c.from("req_order_items").insert(cart.map((it) => ({ order_id: order.id, item_id: it.id, item_name: it.name, unit: it.unit || null, quantity: Number(it.qty) })));
     if (meta.channel) {
-      await slack("chat.postMessage", BOT(), { channel: meta.channel, thread_ts: meta.button_ts, text: `Request #${order.number} submitted`,
-        blocks: [{ type: "section", text: { type: "mrkdwn", text: `📝 *Request #${order.number}* submitted by *${meta.name}* — waiting for approval.` } }] });
+      const conf = [{ type: "section", text: { type: "mrkdwn", text: `📝 *Request #${order.number}* submitted by *${meta.name}* — waiting for approval.` } }];
+      // replace the "Start request" button with the confirmation (removes the button)
+      if (meta.button_ts) await slack("chat.update", BOT(), { channel: meta.channel, ts: meta.button_ts, text: `Request #${order.number} submitted`, blocks: conf });
+      else await slack("chat.postMessage", BOT(), { channel: meta.channel, thread_ts: meta.thread_ts, text: `Request #${order.number} submitted`, blocks: conf });
     }
     return jsonResp({ response_action: "clear" });
   }
