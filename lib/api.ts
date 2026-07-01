@@ -134,6 +134,9 @@ export const rejectRequest = (request_id: string, reason: string) =>
 // Mark notifications as read (only the still-unread ids are stamped server-side).
 export const markSeen = (ids: string[]) => callFn("mark-seen", { ids });
 
+// Save this device's Web Push subscription so it receives background alerts.
+export const savePush = (subscription: PushSubscriptionJSON) => callFn("save-push", { subscription });
+
 // ---- Superadmin: manage this portal's keepers -----------------------------
 export const fetchUsers = async (): Promise<PortalUser[]> => {
   const j = await callFn("manage-users", { action: "list" });

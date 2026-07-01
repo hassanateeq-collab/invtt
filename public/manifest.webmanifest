@@ -1,0 +1,15 @@
+{
+  "name": "Supply Chain and Inventory",
+  "short_name": "Hamsun Supply",
+  "description": "Hamsun supply chain & inventory portal.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f5f4",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "/hamsun-logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/hamsun-logo.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "maskable" },
+    { "src": "/hamsun-logo.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

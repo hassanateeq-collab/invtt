@@ -1,17 +1,18 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Bell, ArrowLeftRight, ListChecks, Settings, Volume2 } from "lucide-react";
+import { Bell, ArrowLeftRight, ListChecks, Settings, Volume2, Smartphone, Check } from "lucide-react";
 import type { RequestRow } from "@/lib/types";
 import { fmtDateTime, relativeTime } from "@/lib/format";
 import { playBell } from "@/lib/bell";
 
 const SOUND_LEVELS: [string, number][] = [["Off", 0], ["Low", 0.08], ["Medium", 0.22], ["High", 0.45]];
 
-export function NotificationBell({ requests, busyId, onIssue, onReject, onSeen, onSeeAll, volume, onVolume }: {
+export function NotificationBell({ requests, busyId, onIssue, onReject, onSeen, onSeeAll, volume, onVolume, pushStatus, onEnableAlerts }: {
   requests: RequestRow[]; busyId: string | null;
   onIssue: (r: RequestRow) => void; onReject: (r: RequestRow, reason: string) => void;
   onSeen: (ids: string[]) => void; onSeeAll: () => void;
   volume: number; onVolume: (v: number) => void;
+  pushStatus: "idle" | "granted" | "denied" | "unsupported" | "error"; onEnableAlerts: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [showSound, setShowSound] = useState(false);
@@ -90,6 +91,22 @@ export function NotificationBell({ requests, busyId, onIssue, onReject, onSeen, 
                   ))}
                 </div>
                 <p className="mt-1.5 text-[11px] text-stone-400">Tap a level to hear it. Saved on this device.</p>
+
+                <div className="mt-3 border-t border-stone-200 pt-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-stone-600"><Smartphone size={13} /> Background alerts</p>
+                  {pushStatus === "granted" ? (
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><Check size={13} /> On for this device — you’ll be alerted even when the app is closed.</p>
+                  ) : pushStatus === "denied" ? (
+                    <p className="text-[11px] text-stone-400">Notifications are blocked. Allow them for this site in your browser/phone settings, then reopen.</p>
+                  ) : pushStatus === "unsupported" ? (
+                    <p className="text-[11px] text-stone-400">This browser can’t do background alerts. On iPhone, add the app to your Home Screen first.</p>
+                  ) : (
+                    <button onClick={onEnableAlerts}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800">
+                      <Smartphone size={13} /> Enable phone alerts
+                    </button>
+                  )}
+                </div>
               </div>
             )}
             <div className="max-h-96 overflow-y-auto">

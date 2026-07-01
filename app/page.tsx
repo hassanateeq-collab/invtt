@@ -11,6 +11,8 @@ import {
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
+import { registerSW, enablePush, pushSupported } from "@/lib/push";
+import { savePush } from "@/lib/api";
 import { Login } from "@/components/Login";
 import { NotificationBell } from "@/components/NotificationBell";
 import { expiryBadge, statusBadgeCls, statusLabel, stockTextCls } from "@/lib/format";
@@ -56,6 +58,7 @@ export default function Page() {
   const isSuperadmin = role === "superadmin";
   const [bellVol, setBellVol] = useState(0.22);
   const bellVolRef = useRef(0.22);
+  const [pushStatus, setPushStatus] = useState<"idle" | "granted" | "denied" | "unsupported" | "error">("idle");
 
   const [view, setView] = useState<"inventory" | "suppliers" | "areas" | "requests">("inventory");
   const [kind, setKind] = useState<Kind>("all");
@@ -117,6 +120,33 @@ export default function Page() {
     const raw = typeof window !== "undefined" ? localStorage.getItem("bellVol") : null;
     if (raw !== null) { const v = Number(raw); if (Number.isFinite(v)) { setBellVol(v); bellVolRef.current = v; } }
   }, []);
+
+  // Register the push service worker; keep an already-granted device subscribed.
+  useEffect(() => {
+    if (!pushSupported()) { setPushStatus("unsupported"); return; }
+    registerSW();
+    if (Notification.permission === "granted") {
+      (async () => {
+        const r = await enablePush();
+        if (r.subscription) { try { await savePush(r.subscription); } catch { /* ignore */ } }
+        setPushStatus("granted");
+      })();
+    } else if (Notification.permission === "denied") {
+      setPushStatus("denied");
+    }
+  }, []);
+
+  async function enableAlerts() {
+    const r = await enablePush();
+    if (r.result === "granted" && r.subscription) { try { await savePush(r.subscription); } catch { /* ignore */ } }
+    setPushStatus(r.result);
+    flash(
+      r.result === "granted" ? "Phone alerts are on for this device"
+      : r.result === "denied" ? "Notifications are blocked — allow them in your browser settings"
+      : r.result === "unsupported" ? "This device/browser can’t do background alerts"
+      : "Couldn’t turn on alerts — try again",
+    );
+  }
   function changeBellVol(v: number) {
     setBellVol(v); bellVolRef.current = v;
     try { localStorage.setItem("bellVol", String(v)); } catch { /* ignore */ }
@@ -341,7 +371,8 @@ export default function Page() {
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <NotificationBell requests={requests} busyId={bellBusyId} onIssue={onFulfil} onReject={onRejectReq}
-              onSeen={onSeenReqs} onSeeAll={() => setAllNotifOpen(true)} volume={bellVol} onVolume={changeBellVol} />
+              onSeen={onSeenReqs} onSeeAll={() => setAllNotifOpen(true)} volume={bellVol} onVolume={changeBellVol}
+              pushStatus={pushStatus} onEnableAlerts={enableAlerts} />
             {isSuperadmin && (
               <button onClick={() => setUsersOpen(true)} title="Manage users"
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 sm:px-3">
@@ -498,8 +529,8 @@ export default function Page() {
               </div>
             )}
 
-            {/* filter bar */}
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* filter bar — sticks to the top while the item list scrolls */}
+            <div className="sticky top-0 z-30 -mx-4 mt-5 flex flex-col gap-3 border-b border-stone-200/60 bg-[#f5f5f4] px-4 py-2.5 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex rounded-xl bg-stone-100 p-1 text-sm">
                   {([["all", "All"], ["fresh", "Kitchen & fresh"], ["store", "Storeroom"]] as [Kind, string][]).map(([k, lbl]) => (
