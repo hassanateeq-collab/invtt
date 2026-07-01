@@ -7,7 +7,7 @@ import {
 import type { Area, Department, ItemStock, MovementRow, Note, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes, updateItem,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes, updateItem, resetUsage,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -298,6 +298,13 @@ export default function Page() {
     setAllItems((its) => its.map((x) => (x.id === id ? { ...x, unit_cost: price } : x)));
     try { await updateItem(id, { unit_cost: price }); }
     catch (e) { flash(e instanceof Error ? e.message : "Couldn’t save price"); await refresh().catch(() => {}); }
+  }
+
+  // Superadmin: reset an item's "Used 7d" figure to zero (optimistic).
+  async function onResetUsage(item: ItemStock) {
+    setAllItems((its) => its.map((x) => (x.id === item.id ? { ...x, used_7d: 0 } : x)));
+    try { await resetUsage(item.id); flash(`Reset “Used 7d” for ${item.name}`); }
+    catch (e) { flash(e instanceof Error ? e.message : "Couldn’t reset usage"); await refresh().catch(() => {}); }
   }
 
   async function confirmDelete() {
@@ -628,6 +635,12 @@ export default function Page() {
                       <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
                         <span className="text-xs text-stone-400 sm:hidden">Used 7d</span>
                         <span className="tnum text-sm text-stone-500">{i.used_7d}</span>
+                        {isSuperadmin && i.used_7d > 0 && (
+                          <button onClick={() => onResetUsage(i)} title="Reset Used 7d to 0"
+                            className="ml-1.5 rounded px-1 py-0.5 text-[10px] font-medium text-amber-600 ring-1 ring-amber-200 hover:bg-amber-50 sm:ml-0 sm:mt-0.5 sm:block">
+                            reset →0
+                          </button>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
