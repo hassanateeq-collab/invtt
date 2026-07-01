@@ -12,6 +12,11 @@ create table if not exists invtt.push_subscriptions (
 );
 grant all on invtt.push_subscriptions to service_role;
 
+-- RLS on: only the service role (edge functions) touches this table; the public
+-- API gets no access. No policy needed for anon/authenticated.
+alter table invtt.push_subscriptions enable row level security;
+revoke all on invtt.push_subscriptions from anon, authenticated;
+
 -- pg_net lets the database call the send-push edge function over HTTP
 create extension if not exists pg_net with schema extensions;
 
