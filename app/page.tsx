@@ -101,7 +101,46 @@ export default function Page() {
       setAuthed(!!session); setMyId(session?.user.id ?? "");
       if (session?.access_token) supabase.realtime.setAuth(session.access_token);
     });
-    return () => sub.subscription.unsubscribe();
+
+    // Anti-logout guard: whenever the tab is re-focused / comes back online,
+    // top up the session. If the access token is expired or within 2 minutes of
+    // expiring, refresh it now instead of waiting for it to lapse (which is what
+    // silently kicked people to the login screen after the portal sat idle).
+    let refreshing = false;
+    const ensureFresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const { data } = await supabase.auth.getSession();
+        const s = data.session;
+        if (!s) return; // genuinely signed out — leave the login screen up
+        const msLeft = (s.expires_at ?? 0) * 1000 - Date.now();
+        if (msLeft < 120_000) {
+          const { data: r } = await supabase.auth.refreshSession();
+          if (r.session?.access_token) {
+            supabase.realtime.setAuth(r.session.access_token);
+            setAuthed(true); setMyId(r.session.user.id);
+          }
+        } else {
+          supabase.realtime.setAuth(s.access_token);
+        }
+      } catch { /* transient — keep the user where they are */ }
+      finally { refreshing = false; }
+    };
+    const onVis = () => { if (document.visibilityState === "visible") ensureFresh(); };
+    window.addEventListener("focus", ensureFresh);
+    window.addEventListener("online", ensureFresh);
+    document.addEventListener("visibilitychange", onVis);
+    // and a slow heartbeat so a long-open, always-focused tab still refreshes
+    const beat = setInterval(ensureFresh, 240_000);
+
+    return () => {
+      sub.subscription.unsubscribe();
+      window.removeEventListener("focus", ensureFresh);
+      window.removeEventListener("online", ensureFresh);
+      document.removeEventListener("visibilitychange", onVis);
+      clearInterval(beat);
+    };
   }, []);
 
   // Is the signed-in user an allow-listed keeper? (own profile row visible)
