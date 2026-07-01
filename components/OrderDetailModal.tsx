@@ -160,7 +160,8 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                   </>
                 ) : (
                   <div className="rounded-xl border border-dashed border-teal-300 bg-teal-50/40 p-3">
-                    <p className="mb-2 text-xs font-semibold text-teal-800">New item</p>
+                    <p className="mb-1 text-xs font-semibold text-teal-800">New item</p>
+                    <p className="mb-2 text-[11px] text-stone-500">Added to this branch’s <b>Others</b> department.</p>
                     <input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="Item name"
                       className="mb-2 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-teal-600" />
                     <div className="flex gap-2">

@@ -232,12 +232,8 @@ Deno.serve(async (req) => {
     const { data: dept } = await c.from("departments").select("id, name, property_id").eq("id", deptId).maybeSingle();
     if (!dept) return jsonResp({ response_action: "errors", errors: { qdept: "Department not found." } });
 
-    // try to match the requested item in that branch
-    const { data: brItems } = await c.from("items").select("id, name, unit").eq("property_id", dept.property_id);
-    const rn = norm(String(meta.name ?? ""));
-    const match = (brItems ?? []).find((i: Record<string, unknown>) => norm(String(i.name)) === rn)
-      || (brItems ?? []).find((i: Record<string, unknown>) => { const n = norm(String(i.name)); return n.includes(rn) || (rn.length > 2 && rn.includes(n)); });
-
+    // A quick request never auto-links an item — it always goes to the keeper to
+    // add/route it into the branch's "Others" department (item_id stays null).
     const { data: order, error } = await c.from("req_orders").insert({
       property_id: dept.property_id, department_id: dept.id, department_name: dept.name,
       requester_name: meta.requester ?? "Someone", requester_slack_id: meta.slack_id ?? null, source: "slack",
@@ -246,11 +242,10 @@ Deno.serve(async (req) => {
     if (error || !order) return jsonResp({ response_action: "errors", errors: { qdept: "Could not save — please try again." } });
 
     await c.from("req_order_items").insert({
-      order_id: order.id, item_id: (match as { id?: string })?.id ?? null,
-      item_name: (match as { name?: string })?.name ?? meta.name, unit: (match as { unit?: string })?.unit ?? null, quantity: meta.qty,
+      order_id: order.id, item_id: null, item_name: meta.name, unit: null, quantity: meta.qty,
     });
     if (meta.channel) {
-      const conf = [{ type: "section", text: { type: "mrkdwn", text: `📝 *Request #${order.number}* — *${meta.qty} × ${(match as { name?: string })?.name ?? meta.name}* for *${dept.name}* — waiting for approval.` } }];
+      const conf = [{ type: "section", text: { type: "mrkdwn", text: `📝 *Request #${order.number}* — *${meta.qty} × ${meta.name}* for *${dept.name}* — waiting for approval.` } }];
       if (meta.button_ts) {
         // replace the "Choose branch & dept" button with the confirmation (removes the button)
         await slack("chat.update", BOT(), { channel: meta.channel, ts: meta.button_ts, text: `Request #${order.number} submitted`, blocks: conf });
