@@ -21,7 +21,7 @@ function ToastCard({ t, busy, onDismiss, onOpen, onAccept }: {
   const preview = items.slice(0, 3).map((l) => `${l.item_name} ×${l.quantity}`).join(", ");
 
   return (
-    <div className="pointer-events-auto w-80 max-w-[90vw] animate-[slidein_.25s_ease-out] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl ring-1 ring-black/5">
+    <div className="pointer-events-auto w-80 max-w-[92vw] animate-[popin_.2s_ease-out] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl ring-1 ring-black/5">
       <div className="flex items-center justify-between bg-teal-700 px-4 py-2 text-white">
         <span className="flex items-center gap-1.5 text-sm font-semibold"><Bell size={14} /> New request #{o.number}</span>
         <button onClick={() => onDismiss(t.key)} className="rounded p-0.5 hover:bg-white/20"><X size={15} /></button>
@@ -58,11 +58,11 @@ export function NotificationToasts({ toasts, busyKey, onDismiss, onOpen, onAccep
 }) {
   if (!toasts.length) return null;
   // newest on top; cap the visible stack so they don't run off-screen
-  const visible = [...toasts].reverse().slice(0, 5);
+  const visible = [...toasts].reverse().slice(0, 4);
   return (
     <>
-      <style>{`@keyframes slidein{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}`}</style>
-      <div className="pointer-events-none fixed right-4 top-4 z-[80] flex flex-col gap-2.5">
+      <style>{`@keyframes popin{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}`}</style>
+      <div className="pointer-events-none fixed inset-0 z-[80] flex flex-col items-center justify-center gap-2.5 p-4">
         {visible.map((t) => (
           <ToastCard key={t.key} t={t} busy={busyKey === t.key}
             onDismiss={onDismiss} onOpen={onOpen} onAccept={onAccept} />

@@ -61,7 +61,7 @@ export function NotificationBell({ requests, busyId, onIssue, onReject, onSeen, 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={close} />
-          <div className="absolute right-0 z-50 mt-2 w-80 max-w-[90vw] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl">
+          <div className="fixed inset-x-3 top-16 z-50 mx-auto max-w-sm overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mx-0 sm:mt-2 sm:w-80">
             <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
               <div>
                 <h3 className="text-sm font-semibold text-stone-900">Notifications</h3>
