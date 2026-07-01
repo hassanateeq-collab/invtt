@@ -24,15 +24,16 @@ export function OrderDetailModal({ order, properties, departments, items, units,
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
 
-  // quick-req = a Slack request with no branch yet (needs resolving)
-  const isQuick = !order.property_id && order.status === "pending";
+  // unresolved = a request whose item isn't linked yet (Slack quick req)
   const line = order.req_order_items?.[0];
   const reqName = line?.item_name ?? "";
   const reqQty = line?.quantity ?? 0;
+  const isQuick = order.status === "pending" && !!line && !line.item_id;
+  const branchLocked = !!order.property_id;
 
-  // resolve state
-  const [branchId, setBranchId] = useState("");
-  const [deptId, setDeptId] = useState("");
+  // resolve state (branch prefilled if the requester already chose it)
+  const [branchId, setBranchId] = useState(order.property_id ?? "");
+  const [deptId, setDeptId] = useState(order.department_id ?? "");
   const [chosenItem, setChosenItem] = useState<string>("");
   const [addNew, setAddNew] = useState(false);
   const [nName, setNName] = useState(reqName);
@@ -103,21 +104,31 @@ export function OrderDetailModal({ order, properties, departments, items, units,
         {isQuick ? (
           <div className="border-t border-stone-100 px-5 py-3">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">Resolve — issue {reqQty} × “{reqName}”</p>
-            <label className="mb-1 block text-xs font-medium text-stone-600">Branch</label>
-            <select value={branchId} onChange={(e) => { setBranchId(e.target.value); setDeptId(""); setChosenItem(""); setAddNew(false); }}
-              className="mb-2 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
-              <option value="">Choose a branch…</option>
-              {properties.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
-            </select>
+            {branchLocked ? (
+              <p className="mb-3 flex items-center gap-1 rounded-lg bg-stone-50 px-2.5 py-1.5 text-xs text-stone-600"><Building2 size={12} /> {order.properties?.code}{order.department_name ? ` · ${order.department_name}` : ""} <span className="text-stone-400">(chosen by requester)</span></p>
+            ) : (
+              <>
+                <label className="mb-1 block text-xs font-medium text-stone-600">Branch</label>
+                <select value={branchId} onChange={(e) => { setBranchId(e.target.value); setDeptId(""); setChosenItem(""); setAddNew(false); }}
+                  className="mb-2 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
+                  <option value="">Choose a branch…</option>
+                  {properties.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
+                </select>
+              </>
+            )}
 
             {branchId && (
               <>
-                <label className="mb-1 block text-xs font-medium text-stone-600">Department</label>
-                <select value={deptId} onChange={(e) => setDeptId(e.target.value)}
-                  className="mb-3 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
-                  <option value="">— none —</option>
-                  {branchDepts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
+                {!branchLocked && (
+                  <>
+                    <label className="mb-1 block text-xs font-medium text-stone-600">Department</label>
+                    <select value={deptId} onChange={(e) => setDeptId(e.target.value)}
+                      className="mb-3 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
+                      <option value="">— none —</option>
+                      {branchDepts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                  </>
+                )}
 
                 {!addNew ? (
                   <>

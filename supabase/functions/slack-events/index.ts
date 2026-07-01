@@ -1,18 +1,13 @@
 // slack-events — Slack Event Subscriptions endpoint.
 //   "req"                 -> post the "Start request" button (guided form)
-//   "req <number> <name>" -> quick branch-less request the keeper resolves
+//   "req <number> <name>" -> post a "Choose branch & dept" button; the requester
+//                            sets branch/department, then it goes to the keeper.
 // A number is required for the quick form; "req cables" (no number) is ignored.
 //
 // Secrets: SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, SLACK_REQUEST_CHANNEL (opt),
-//          SLACK_ADMIN_USER_TOKEN (opt), SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
+//          SLACK_ADMIN_USER_TOKEN (opt)
 const SIGNING = () => Deno.env.get("SLACK_SIGNING_SECRET")!;
 const BOT = () => Deno.env.get("SLACK_BOT_TOKEN")!;
-const db = () =>
-  createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
-    db: { schema: "invtt" }, auth: { persistSession: false },
-  });
 
 async function verify(req: Request, body: string): Promise<boolean> {
   const ts = req.headers.get("x-slack-request-timestamp") ?? "";
@@ -32,18 +27,6 @@ async function slack(method: string, token: string, payload: unknown) {
     body: JSON.stringify(payload),
   });
   return await r.json();
-}
-async function slackGet(method: string, token: string, params: Record<string, string>) {
-  const u = new URL(`https://slack.com/api/${method}`);
-  Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
-  const r = await fetch(u, { headers: { Authorization: `Bearer ${token}` } });
-  return r.json();
-}
-async function displayName(userId: string): Promise<string> {
-  try {
-    const info = await slackGet("users.info", BOT(), { user: userId });
-    return info?.user?.profile?.real_name || info?.user?.real_name || info?.user?.name || "Someone";
-  } catch { return "Someone"; }
 }
 
 Deno.serve(async (req) => {
@@ -80,25 +63,21 @@ Deno.serve(async (req) => {
         return new Response("ok");
       }
 
-      // "req <number> <item name>" -> quick, branch-less request
+      // "req <number> <item name>" -> button to choose branch & department
       const m = inScope ? raw.match(/^req\s+(\d+(?:[.,]\d+)?)\s+(.+)$/i) : null;
       if (m) {
         const qty = parseFloat(m[1].replace(",", "."));
         const itemName = m[2].trim();
         if (Number.isFinite(qty) && qty > 0 && itemName) {
-          const name = await displayName(user);
-          const c = db();
-          const { data: order } = await c.from("req_orders").insert({
-            requester_name: name, requester_slack_id: user, source: "slack",
-            slack_channel: channel, slack_thread_ts: e.ts,
-          }).select("id, number").single();
-          if (order) {
-            await c.from("req_order_items").insert({ order_id: order.id, item_id: null, item_name: itemName, unit: null, quantity: qty });
-            await slack("chat.postMessage", BOT(), {
-              channel, thread_ts: e.ts, text: `Request #${order.number} received`,
-              blocks: [{ type: "section", text: { type: "mrkdwn", text: `📝 *Request #${order.number}* — *${qty} × ${itemName}* — sent to the keeper for approval.` } }],
-            });
-          }
+          await slack("chat.postMessage", BOT(), {
+            channel, thread_ts: e.ts, text: `Choose branch for ${qty} × ${itemName}`,
+            blocks: [
+              { type: "section", text: { type: "mrkdwn", text: `<@${user}> you asked for *${qty} × ${itemName}*. Tap below to choose your branch & department 👇` } },
+              { type: "actions", elements: [{ type: "button", style: "primary",
+                text: { type: "plain_text", text: "Choose branch & dept" }, action_id: "quick_branch",
+                value: JSON.stringify({ q: qty, n: itemName }) }] },
+            ],
+          });
         }
       }
     }
