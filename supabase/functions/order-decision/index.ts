@@ -55,6 +55,10 @@ Deno.serve(async (req) => {
 
   if (action === "accept") {
     if (order.status !== "pending") return bad("This request was already handled.");
+    // A quick req (a line with no linked item) must be resolved, not accepted —
+    // the item has to be added to a branch/department first. Block the shortcut.
+    const { data: lines0 } = await c.from("req_order_items").select("item_id").eq("order_id", order_id);
+    if ((lines0 ?? []).some((l) => !l.item_id)) return bad("Add the item to a branch first (resolve this request in the portal).");
     await c.from("req_orders").update({ status: "accepted", decided_at: new Date().toISOString(), decided_by: _uid }).eq("id", order_id);
     if (order.slack_channel && order.slack_thread_ts) {
       const r = await slack("chat.postMessage", {

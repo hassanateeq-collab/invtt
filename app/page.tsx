@@ -233,6 +233,14 @@ export default function Page() {
   const dismissToast = (key: number) => setToasts((t) => t.filter((x) => x.key !== key));
   const openToast = (key: number) => { setView("requests"); dismissToast(key); };
   async function acceptToast(t: Toast) {
+    // A quick req (item not linked yet) can't be one-tap accepted — it must be
+    // resolved (add the item + pick a department). Open the resolver instead.
+    const line = t.order.req_order_items?.[0];
+    if (t.order.status === "pending" && line && !line.item_id) {
+      setSelectedOrder(t.order);
+      dismissToast(t.key);
+      return;
+    }
     setToastBusyKey(t.key);
     try {
       await decideOrder(t.order.id, "accept");
