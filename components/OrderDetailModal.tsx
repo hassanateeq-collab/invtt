@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { X, MessageSquare, Globe, Check, PackageCheck, Building2, Zap, Plus, Search } from "lucide-react";
 import type { ReqOrder, OrderStatus, Property, Department, ItemStock, Unit } from "@/lib/types";
 import { decideOrder, resolveQuickReq } from "@/lib/api";
@@ -56,10 +56,18 @@ export function OrderDetailModal({ order, properties, departments, items, units,
       .sort((a, b) => a.name.localeCompare(b.name)).slice(0, 8);
   }, [branchItems, reqName, pick, branchId]);
 
-  async function act(fn: () => Promise<unknown>, msg: string) {
+  const actedRef = useRef(false);
+  // Close the popup instantly (one click), then do the network work in the
+  // background. onChanged flashes + reloads once it's actually done.
+  function act(fn: () => Promise<unknown>, msg: string) {
+    if (actedRef.current) return;
+    actedRef.current = true;
     setBusy(true);
-    try { await fn(); onChanged(msg); onClose(); }
-    catch (e) { alert(e instanceof Error ? e.message : "Failed"); setBusy(false); }
+    onClose();
+    void (async () => {
+      try { await fn(); onChanged(msg); }
+      catch (e) { onChanged(e instanceof Error ? e.message : "Action failed"); }
+    })();
   }
 
   const where = [order.properties?.code, order.department_name].filter(Boolean).join(" · ");
