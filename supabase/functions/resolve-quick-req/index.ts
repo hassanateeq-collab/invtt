@@ -73,18 +73,11 @@ Deno.serve(async (req) => {
   const qty = Math.max(0, Number(line?.quantity) || 0);
   if (qty <= 0) return bad("This request has no quantity.");
 
-  // Where should the item live? Whatever department the keeper picked in the
-  // portal. If they left it blank, drop it into the branch's "Others" bucket
-  // (created on demand) — the catch-all for unique / one-off items.
-  let targetDept: string | null = department_id;
-  if (!targetDept) {
-    const { data: od } = await c.from("departments").select("id").eq("property_id", property_id).ilike("name", "others").maybeSingle();
-    if (od) targetDept = od.id;
-    else {
-      const { data: nd } = await c.from("departments").insert({ property_id, name: "Others", sort_order: 900 }).select("id").maybeSingle();
-      targetDept = nd?.id ?? null;
-    }
-  }
+  // The item lives in the department the request was made for (or one the
+  // keeper picked while resolving). Every request already names its department,
+  // so there is no "Others" catch-all any more.
+  const targetDept: string | null = department_id ?? (order.department_id ? String(order.department_id) : null);
+  if (!targetDept) return bad("Pick a department to place the item in.");
 
   // resolve the item: use the chosen one, or create a new item in the branch
   let item_id = body.item_id ? String(body.item_id) : "";

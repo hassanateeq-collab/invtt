@@ -3,8 +3,8 @@
 //   pick_dept / add_item / remove -> build the cart
 //   req_submit     -> create a numbered order + lines
 //   quick_branch   -> open the "choose branch & department" modal (quick req)
-//   quick_submit   -> create the order for a quick req (matches the item if it
-//                     already exists in that branch; else keeper resolves it)
+//   quick_submit   -> create the order for a quick req (item stays unlinked so
+//                     the keeper resolves it into the requester's department)
 //   collect_order  -> subtract stock and close
 //
 // Secrets: SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, SUPABASE_URL,
@@ -233,7 +233,7 @@ Deno.serve(async (req) => {
     if (!dept) return jsonResp({ response_action: "errors", errors: { qdept: "Department not found." } });
 
     // A quick request never auto-links an item — it always goes to the keeper to
-    // add/route it into the branch's "Others" department (item_id stays null).
+    // add/route it into the requester's department (item_id stays null).
     const { data: order, error } = await c.from("req_orders").insert({
       property_id: dept.property_id, department_id: dept.id, department_name: dept.name,
       requester_name: meta.requester ?? "Someone", requester_slack_id: meta.slack_id ?? null, source: "slack",

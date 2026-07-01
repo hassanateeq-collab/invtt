@@ -42,8 +42,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
   const [pick, setPick] = useState("");
 
   const branchDepts = useMemo(() => departments.filter((d) => d.property_id === branchId), [departments, branchId]);
-  const hasOthers = useMemo(() => branchDepts.some((d) => d.name.trim().toLowerCase() === "others"), [branchDepts]);
-  const targetDeptName = useMemo(() => branchDepts.find((d) => d.id === deptId)?.name ?? "Others", [branchDepts, deptId]);
+  const targetDeptName = useMemo(() => branchDepts.find((d) => d.id === deptId)?.name ?? "the chosen department", [branchDepts, deptId]);
   const branchItems = useMemo(() => items.filter((i) => i.property_id === branchId), [items, branchId]);
   const matches = useMemo(() => {
     if (!branchId) return [];
@@ -119,11 +118,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
             ) : (
               <>
                 <label className="mb-1 block text-xs font-medium text-stone-600">Branch</label>
-                <select value={branchId} onChange={(e) => {
-                    const bid = e.target.value;
-                    const others = departments.find((d) => d.property_id === bid && d.name.trim().toLowerCase() === "others");
-                    setBranchId(bid); setDeptId(others?.id ?? ""); setChosenItem(""); setAddNew(false);
-                  }}
+                <select value={branchId} onChange={(e) => { setBranchId(e.target.value); setDeptId(""); setChosenItem(""); setAddNew(false); }}
                   className="mb-2 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
                   <option value="">Choose a branch…</option>
                   {properties.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
@@ -136,8 +131,8 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                 <label className="mb-1 block text-xs font-medium text-stone-600">Put it in which department?</label>
                 <select value={deptId} onChange={(e) => setDeptId(e.target.value)}
                   className="mb-3 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
+                  <option value="">Choose a department…</option>
                   {branchDepts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  {!hasOthers && <option value="">Others (unique items)</option>}
                 </select>
 
                 {!addNew ? (
@@ -185,7 +180,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                       order_id: order.id, action: "issue", property_id: branchId, department_id: deptId || null,
                       ...(addNew ? { new_item: { name: nName.trim(), unit: nUnit, type: nType } } : { item_id: chosenItem }),
                     }), `Issued #${order.number}`)}
-                    disabled={busy || (!addNew && !chosenItem) || (addNew && !nName.trim())}
+                    disabled={busy || (!addNew && !chosenItem) || (addNew && (!nName.trim() || !deptId))}
                     className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
                     <PackageCheck size={15} /> Issue {reqQty}
                   </button>
