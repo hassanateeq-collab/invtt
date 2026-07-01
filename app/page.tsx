@@ -223,6 +223,13 @@ export default function Page() {
     }
   }, [orders]);
 
+  // If another signed-in keeper handles a request, it stops being pending —
+  // pull its popup off every other screen so nobody accepts it twice.
+  useEffect(() => {
+    const stillPending = new Set(orders.filter((o) => o.status === "pending").map((o) => o.id));
+    setToasts((t) => t.filter((x) => stillPending.has(x.order.id)));
+  }, [orders]);
+
   const dismissToast = (key: number) => setToasts((t) => t.filter((x) => x.key !== key));
   const openToast = (key: number) => { setView("requests"); dismissToast(key); };
   async function acceptToast(t: Toast) {
@@ -230,10 +237,14 @@ export default function Page() {
     try {
       await decideOrder(t.order.id, "accept");
       flash(`Accepted #${t.order.number}`);
-      dismissToast(t.key);
+    } catch (e) {
+      // most likely another signed-in keeper already handled it
+      flash(e instanceof Error ? e.message : "Could not accept");
+    } finally {
+      dismissToast(t.key);        // always clear the popup — never leave it stuck
+      setToastBusyKey(null);
       await reloadOrders();
-    } catch (e) { flash(e instanceof Error ? e.message : "Could not accept"); }
-    finally { setToastBusyKey(null); }
+    }
   }
 
   // Live updates: realtime on new requests + orders + a 15s safety poll.
