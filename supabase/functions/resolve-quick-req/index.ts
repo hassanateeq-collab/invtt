@@ -73,10 +73,20 @@ Deno.serve(async (req) => {
   const qty = Math.max(0, Number(line?.quantity) || 0);
   if (qty <= 0) return bad("This request has no quantity.");
 
-  // The item lives in the department the request was made for (or one the
-  // keeper picked while resolving). Every request already names its department,
-  // so there is no "Others" catch-all any more.
-  const targetDept: string | null = department_id ?? (order.department_id ? String(order.department_id) : null);
+  // Where does the item go? The keeper decides in the portal:
+  //   - a real department        -> use it
+  //   - "Others" (use_others)    -> the branch's Others bucket (made on demand)
+  //   - nothing chosen           -> fall back to the department the req named
+  let targetDept: string | null = department_id;
+  if (body.use_others) {
+    const { data: od } = await c.from("departments").select("id").eq("property_id", property_id).ilike("name", "others").maybeSingle();
+    if (od) targetDept = od.id;
+    else {
+      const { data: nd } = await c.from("departments").insert({ property_id, name: "Others", sort_order: 900 }).select("id").maybeSingle();
+      targetDept = nd?.id ?? null;
+    }
+  }
+  if (!targetDept) targetDept = order.department_id ? String(order.department_id) : null;
   if (!targetDept) return bad("Pick a department to place the item in.");
 
   // resolve the item: use the chosen one, or create a new item in the branch

@@ -179,6 +179,7 @@ export interface ResolveQuickReq {
   reason?: string;
   property_id?: string;
   department_id?: string | null;
+  use_others?: boolean;
   item_id?: string;
   new_item?: { name: string; unit?: string; type?: "fresh" | "store"; par_level?: number; reorder_point?: number; unit_cost?: number };
 }

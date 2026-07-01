@@ -42,7 +42,12 @@ export function OrderDetailModal({ order, properties, departments, items, units,
   const [pick, setPick] = useState("");
 
   const branchDepts = useMemo(() => departments.filter((d) => d.property_id === branchId), [departments, branchId]);
-  const targetDeptName = useMemo(() => branchDepts.find((d) => d.id === deptId)?.name ?? "the chosen department", [branchDepts, deptId]);
+  // an existing "Others" department, if the branch already has one
+  const othersDept = useMemo(() => branchDepts.find((d) => d.name.trim().toLowerCase() === "others"), [branchDepts]);
+  const targetDeptName = useMemo(
+    () => (deptId === "__others__" ? "Others" : branchDepts.find((d) => d.id === deptId)?.name ?? "the chosen department"),
+    [branchDepts, deptId],
+  );
   const branchItems = useMemo(() => items.filter((i) => i.property_id === branchId), [items, branchId]);
   const matches = useMemo(() => {
     if (!branchId) return [];
@@ -133,6 +138,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                   className="mb-3 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600">
                   <option value="">Choose a department…</option>
                   {branchDepts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  {!othersDept && <option value="__others__">Others (one-off / unique items)</option>}
                 </select>
 
                 {!addNew ? (
@@ -177,7 +183,9 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => act(() => resolveQuickReq({
-                      order_id: order.id, action: "issue", property_id: branchId, department_id: deptId || null,
+                      order_id: order.id, action: "issue", property_id: branchId,
+                      department_id: deptId === "__others__" ? null : (deptId || null),
+                      use_others: deptId === "__others__",
                       ...(addNew ? { new_item: { name: nName.trim(), unit: nUnit, type: nType } } : { item_id: chosenItem }),
                     }), `Issued #${order.number}`)}
                     disabled={busy || (!addNew && !chosenItem) || (addNew && (!nName.trim() || !deptId))}
