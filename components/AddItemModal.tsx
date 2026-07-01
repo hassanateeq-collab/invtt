@@ -19,6 +19,7 @@ export function AddItemModal({ propertyId, branchName, departments, areas, units
   const [areaId, setAreaId] = useState("");
   const [par, setPar] = useState("0");
   const [reorder, setReorder] = useState("0");
+  const [unitCost, setUnitCost] = useState("0");
   const [supplierId, setSupplierId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +38,7 @@ export function AddItemModal({ propertyId, branchName, departments, areas, units
         type,
         par_level: Math.max(0, Number(par) || 0),
         reorder_point: Math.max(0, Number(reorder) || 0),
+        unit_cost: Math.max(0, Number(unitCost) || 0),
         supplier_id: supplierId || null,
       });
       onDone(`Added ${name.trim()} to ${branchName}`);
@@ -100,6 +102,10 @@ export function AddItemModal({ propertyId, branchName, departments, areas, units
               <label className={labelCls}>Reorder at</label>
               <input className={inputCls} type="number" min="0" value={reorder} onChange={(e) => setReorder(e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label className={labelCls}>Unit cost (per {unit || "unit"})</label>
+            <input className={inputCls} type="number" min="0" step="any" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0" />
           </div>
           <div>
             <label className={labelCls}>Supplier (optional)</label>

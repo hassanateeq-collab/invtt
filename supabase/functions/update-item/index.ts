@@ -61,6 +61,11 @@ Deno.serve(async (req) => {
     if (!Number.isFinite(n) || n < 0) return bad("reorder_point must be 0 or more");
     patch.reorder_point = n;
   }
+  if (body.unit_cost !== undefined) {
+    const n = Number(body.unit_cost);
+    if (!Number.isFinite(n) || n < 0) return bad("unit_cost must be 0 or more");
+    patch.unit_cost = n;
+  }
   if (body.supplier_id !== undefined) {
     patch.supplier_id = body.supplier_id ? String(body.supplier_id) : null;
   }

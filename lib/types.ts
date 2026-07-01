@@ -54,6 +54,7 @@ export interface ItemStock {
   par_level: number;
   reorder_point: number;
   delivery_override: DeliveryMode | null;
+  unit_cost: number;
   created_at: string;
   current_stock: number;
   status: StockStatus;
@@ -84,6 +85,16 @@ export interface PortalUser {
   email: string;
   role: string; // 'superadmin' | 'warehouse_keeper'
   created_at: string;
+}
+
+export interface Note {
+  id: string;
+  author_id: string | null;
+  author_name: string | null;
+  note_date: string; // YYYY-MM-DD
+  body: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export type OrderStatus = "pending" | "accepted" | "rejected" | "collected";

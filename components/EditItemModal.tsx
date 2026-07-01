@@ -22,6 +22,7 @@ export function EditItemModal({ item, suppliers, departments, areas, units, onCl
   const [reorder, setReorder] = useState(String(item.reorder_point));
   const [supplierId, setSupplierId] = useState(item.supplier_id ?? "");
   const [route, setRoute] = useState<"" | "central" | "direct">(item.delivery_override ?? "");
+  const [unitCost, setUnitCost] = useState(String(item.unit_cost ?? 0));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +42,7 @@ export function EditItemModal({ item, suppliers, departments, areas, units, onCl
         name: name.trim(), unit: unit.trim(), type, par_level: p, reorder_point: r,
         supplier_id: supplierId || null, delivery_override: route === "" ? null : route,
         department_id: deptId || null, area_id: areaId || null,
+        unit_cost: Math.max(0, Number(unitCost) || 0),
       });
       // A typed stock change is recorded as an adjustment (never an overwrite).
       if (stockDelta !== 0) {
@@ -101,6 +103,10 @@ export function EditItemModal({ item, suppliers, departments, areas, units, onCl
               <label className={labelCls}>Reorder at</label>
               <input className={inputCls} type="number" min="0" value={reorder} onChange={(e) => setReorder(e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label className={labelCls}>Unit cost (per {unit || "unit"})</label>
+            <input className={inputCls} type="number" min="0" step="any" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

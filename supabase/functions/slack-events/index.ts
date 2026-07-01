@@ -54,6 +54,7 @@ Deno.serve(async (req) => {
         }
         await slack("chat.postMessage", BOT(), {
           channel,
+          thread_ts: e.ts, // reply inside the thread of the "req" message
           text: "Start your stock request",
           blocks: [
             { type: "section", text: { type: "mrkdwn", text: `<@${user}> tap below to start your stock request 👇` } },

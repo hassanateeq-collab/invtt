@@ -2,12 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
-  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck, Building2, ClipboardList, Trash2, AlertTriangle,
+  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck, Building2, ClipboardList, Trash2, AlertTriangle, NotebookPen, Wallet,
 } from "lucide-react";
-import type { Area, Department, ItemStock, MovementRow, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
+import type { Area, Department, ItemStock, MovementRow, Note, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -27,6 +27,8 @@ import { AreasView } from "@/components/AreasView";
 import { UsersModal } from "@/components/UsersModal";
 import { BranchesModal } from "@/components/BranchesModal";
 import { RequestsView } from "@/components/RequestsView";
+import { NotesView } from "@/components/NotesView";
+import { CostView } from "@/components/CostView";
 import { NotificationToasts, type Toast } from "@/components/NotificationToasts";
 import { OrderDetailModal } from "@/components/OrderDetailModal";
 
@@ -45,6 +47,7 @@ export default function Page() {
   const [deptId, setDeptId] = useState<string>("all");
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [orders, setOrders] = useState<ReqOrder[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [movements, setMovements] = useState<MovementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +63,7 @@ export default function Page() {
   const bellVolRef = useRef(0.22);
   const [pushStatus, setPushStatus] = useState<"idle" | "granted" | "denied" | "unsupported" | "error">("idle");
 
-  const [view, setView] = useState<"inventory" | "suppliers" | "areas" | "requests">("inventory");
+  const [view, setView] = useState<"inventory" | "suppliers" | "areas" | "requests" | "notes" | "cost">("inventory");
   const [kind, setKind] = useState<Kind>("all");
   const [attention, setAttention] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StockStatus | null>(null);
@@ -164,6 +167,7 @@ export default function Page() {
     fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
     fetchAreas().then(setAreas).catch(() => setAreas([]));
     fetchUnits().then(setUnits).catch(() => setUnits([]));
+    fetchNotes().then(setNotes).catch(() => setNotes([]));
   }, [isKeeper]);
 
   async function reloadCatalog() {
@@ -187,6 +191,7 @@ export default function Page() {
     setAllItems(it); setRequests(rq); setMovements(mv); setOrders(or);
   }
   async function reloadOrders() { try { setOrders(await fetchOrders()); } catch {} }
+  async function reloadNotes() { try { setNotes(await fetchNotes()); } catch {} }
 
   useEffect(() => {
     if (!isKeeper || !propId) return;
@@ -444,6 +449,14 @@ export default function Page() {
               <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">{pendingOrders}</span>
             )}
           </button>
+          <button onClick={() => setView("notes")}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "notes" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
+            <NotebookPen size={15} /> Notes
+          </button>
+          <button onClick={() => setView("cost")}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "cost" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
+            <Wallet size={15} /> Cost
+          </button>
         </div>
 
         {error && (
@@ -455,6 +468,12 @@ export default function Page() {
         {view === "requests" ? (
           <RequestsView orders={orders}
             onChanged={async (msg) => { flash(msg); await reloadOrders(); await refresh().catch(() => {}); }} />
+        ) : view === "notes" ? (
+          <NotesView notes={notes} items={allItems} properties={properties}
+            onChanged={async (msg) => { flash(msg); await reloadNotes(); }} />
+        ) : view === "cost" ? (
+          <CostView propertyId={propId} branchName={branch ? `${branch.code} · ${branch.name}` : ""}
+            departments={branchDepts} items={allItems} />
         ) : view === "suppliers" ? (
           <SuppliersView suppliers={suppliers} items={allItems} properties={properties}
             onChanged={async (msg) => { flash(msg); try { setSuppliers(await fetchSuppliers()); } catch {} }} />

@@ -1,6 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
-import type { Area, Department, ItemStock, MovementRow, PortalUser, Property, ReqOrder, RequestRow, Supplier, Unit } from "./types";
+import type { Area, Department, ItemStock, MovementRow, Note, PortalUser, Property, ReqOrder, RequestRow, Supplier, Unit } from "./types";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -173,6 +173,17 @@ export async function fetchOrders(): Promise<ReqOrder[]> {
 export const decideOrder = (order_id: string, action: "accept" | "reject" | "collect", reason?: string) =>
   callFn("order-decision", { order_id, action, reason });
 
+// ---- Notes ----------------------------------------------------------------
+export async function fetchNotes(): Promise<Note[]> {
+  const { data, error } = await supabase
+    .from("notes").select("*").order("note_date", { ascending: false }).order("created_at", { ascending: false }).limit(300);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Note[];
+}
+export const upsertNote = (n: { id?: string; note_date?: string; body: string }) =>
+  callFn("manage-notes", { action: "upsert", ...n });
+export const deleteNote = (id: string) => callFn("manage-notes", { action: "delete", id });
+
 export interface ItemPatch {
   name?: string;
   unit?: string;
@@ -183,6 +194,7 @@ export interface ItemPatch {
   delivery_override?: "central" | "direct" | null;
   department_id?: string | null;
   area_id?: string | null;
+  unit_cost?: number;
 }
 export const updateItem = (item_id: string, patch: ItemPatch) =>
   callFn("update-item", { item_id, ...patch });
@@ -197,6 +209,7 @@ export interface NewItem {
   par_level?: number;
   reorder_point?: number;
   supplier_id?: string | null;
+  unit_cost?: number;
 }
 export const createItem = (item: NewItem) => callFn("create-item", item as unknown as Record<string, unknown>);
 export const deleteItem = (id: string) => callFn("delete-item", { id });
