@@ -58,6 +58,25 @@ export function fmtDateTime(iso: string): string {
   });
 }
 
+// Stable colourful tag classes for a department (hashed from its id/name).
+const DEPT_COLORS = [
+  "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
+  "bg-teal-50 text-teal-700 ring-1 ring-teal-200",
+  "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200",
+  "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+  "bg-violet-50 text-violet-700 ring-1 ring-violet-200",
+  "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+  "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
+  "bg-pink-50 text-pink-700 ring-1 ring-pink-200",
+  "bg-lime-50 text-lime-700 ring-1 ring-lime-200",
+  "bg-orange-50 text-orange-700 ring-1 ring-orange-200",
+];
+export function deptColor(key: string): string {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return DEPT_COLORS[h % DEPT_COLORS.length];
+}
+
 // "2h ago", "3d ago", "just now"
 export function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();

@@ -12,7 +12,7 @@ export function EditItemModal({ item, suppliers, departments, areas, units, onCl
   item: ItemStock; suppliers: Supplier[]; departments: Department[]; areas: Area[]; units: Unit[];
   onClose: () => void; onDone: (msg: string) => void;
 }) {
-  const [deptId, setDeptId] = useState(item.department_id ?? "");
+  const [deptIds, setDeptIds] = useState<string[]>(item.department_ids ?? []);
   const [areaId, setAreaId] = useState(item.area_id ?? "");
   const [name, setName] = useState(item.name);
   const [unit, setUnit] = useState(item.unit);
@@ -41,7 +41,7 @@ export function EditItemModal({ item, suppliers, departments, areas, units, onCl
       await updateItem(item.id, {
         name: name.trim(), unit: unit.trim(), type, par_level: p, reorder_point: r,
         supplier_id: supplierId || null, delivery_override: route === "" ? null : route,
-        department_id: deptId || null, area_id: areaId || null,
+        department_ids: deptIds, area_id: areaId || null,
         unit_cost: Math.max(0, Number(unitCost) || 0),
       });
       // A typed stock change is recorded as an adjustment (never an overwrite).
@@ -99,21 +99,31 @@ export function EditItemModal({ item, suppliers, departments, areas, units, onCl
             <label className={labelCls}>Unit cost (per {unit || "unit"})</label>
             <input className={inputCls} type="number" min="0" step="any" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Department</label>
-              <select className={inputCls} value={deptId} onChange={(e) => setDeptId(e.target.value)}>
-                <option value="">— none —</option>
-                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Storage Area</label>
-              <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-                <option value="">— none —</option>
-                {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </div>
+          <div>
+            <label className={labelCls}>Departments <span className="font-normal text-stone-400">(tag one or more)</span></label>
+            {departments.length === 0 ? (
+              <p className="text-xs text-stone-400">No departments in this branch yet.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {departments.map((d) => {
+                  const on = deptIds.includes(d.id);
+                  return (
+                    <button type="button" key={d.id}
+                      onClick={() => setDeptIds((s) => on ? s.filter((x) => x !== d.id) : [...s, d.id])}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium ring-1 ${on ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+                      {d.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className={labelCls}>Storage Area</label>
+            <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+              <option value="">— none —</option>
+              {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
           </div>
           <div>
             <label className={labelCls}>Supplier</label>

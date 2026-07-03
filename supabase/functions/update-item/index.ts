@@ -81,11 +81,22 @@ Deno.serve(async (req) => {
     patch.delivery_override = v;
   }
 
-  if (Object.keys(patch).length === 0) return bad("Nothing to update");
+  // department_ids: full replacement of the item's department tags
+  const deptIds: string[] | null = Array.isArray(body.department_ids)
+    ? [...new Set(body.department_ids.map((d: unknown) => String(d)).filter(Boolean))] : null;
+  if (deptIds && deptIds.length) patch.department_id = deptIds[0]; // keep a primary hint
+
+  if (Object.keys(patch).length === 0 && !deptIds) return bad("Nothing to update");
 
   const c = db();
-  const { error } = await c.from("items").update(patch).eq("id", item_id);
-  if (error) return bad(error.message, 500);
+  if (Object.keys(patch).length) {
+    const { error } = await c.from("items").update(patch).eq("id", item_id);
+    if (error) return bad(error.message, 500);
+  }
+  if (deptIds) {
+    await c.from("item_departments").delete().eq("item_id", item_id);
+    if (deptIds.length) await c.from("item_departments").insert(deptIds.map((d) => ({ item_id, department_id: d })));
+  }
 
   const { data: updated } = await c.from("v_item_stock").select("*").eq("id", item_id).single();
   if (!updated) return bad("Item not found", 404);

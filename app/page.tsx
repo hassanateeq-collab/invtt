@@ -15,7 +15,7 @@ import { registerSW, enablePush, pushSupported } from "@/lib/push";
 import { savePush } from "@/lib/api";
 import { Login } from "@/components/Login";
 import { NotificationBell } from "@/components/NotificationBell";
-import { expiryBadge, statusBadgeCls, statusLabel, stockTextCls } from "@/lib/format";
+import { expiryBadge, statusBadgeCls, statusLabel, stockTextCls, deptColor } from "@/lib/format";
 import { ActionModal } from "@/components/Modals";
 import { EditItemModal } from "@/components/EditItemModal";
 import { AddItemModal } from "@/components/AddItemModal";
@@ -328,8 +328,9 @@ export default function Page() {
 
   const items = useMemo(() => {
     const inBranch = allItems.filter((i) => i.property_id === propId);
-    return deptId === "all" ? inBranch : inBranch.filter((i) => i.department_id === deptId);
+    return deptId === "all" ? inBranch : inBranch.filter((i) => (i.department_ids ?? []).includes(deptId));
   }, [allItems, propId, deptId]);
+  const deptName = useMemo(() => new Map(departments.map((d) => [d.id, d.name])), [departments]);
 
   // Inbox: department requests for this branch; branch-transfer requests show on
   // the hub (actionable) and on the requesting branch (info).
@@ -697,13 +698,16 @@ export default function Page() {
                   return (
                     <div key={i.id} className="grid grid-cols-1 gap-2 border-b border-stone-100 px-4 py-3 last:border-0 sm:grid-cols-12 sm:items-center">
                       <div className="sm:col-span-4">
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-medium text-stone-900">{i.name}</span>
                           {i.area_id && branchAreas.find((a) => a.id === i.area_id) && (
                             <span className="inline-flex items-center gap-0.5 rounded-md bg-stone-100 px-1.5 py-0.5 text-[11px] font-medium text-stone-500">
                               <MapPin size={10} /> {branchAreas.find((a) => a.id === i.area_id)?.name}
                             </span>
                           )}
+                          {(i.department_ids ?? []).filter((d) => deptName.has(d)).map((d) => (
+                            <span key={d} className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${deptColor(d)}`}>{deptName.get(d)}</span>
+                          ))}
                           {exp && <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${exp.cls}`}>{exp.label}</span>}
                         </div>
                         <p className="mt-0.5 text-xs text-stone-400">par {i.par_level} · reorder at {i.reorder_point}</p>

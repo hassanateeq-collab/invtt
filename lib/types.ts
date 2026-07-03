@@ -45,6 +45,7 @@ export interface ItemStock {
   id: string;
   property_id: string;
   department_id: string | null;
+  department_ids: string[]; // all departments this item is tagged under
   area_id: string | null;
   supplier_id: string | null;
   product_id: string | null;

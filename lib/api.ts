@@ -237,6 +237,7 @@ export interface ItemPatch {
   supplier_id?: string | null;
   delivery_override?: "central" | "direct" | null;
   department_id?: string | null;
+  department_ids?: string[];
   area_id?: string | null;
   unit_cost?: number;
 }
@@ -246,6 +247,7 @@ export const updateItem = (item_id: string, patch: ItemPatch) =>
 export interface NewItem {
   property_id: string;
   department_id?: string | null;
+  department_ids?: string[];
   area_id?: string | null;
   name: string;
   unit?: string;

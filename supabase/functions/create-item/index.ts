@@ -43,7 +43,9 @@ Deno.serve(async (req) => {
   const par_level = Math.max(0, Number(body.par_level) || 0);
   const reorder_point = Math.max(0, Number(body.reorder_point) || 0);
   const unit_cost = Math.max(0, Number(body.unit_cost) || 0);
-  const department_id = body.department_id ? String(body.department_id) : null;
+  const deptIds: string[] = Array.isArray(body.department_ids)
+    ? [...new Set(body.department_ids.map((d: unknown) => String(d)).filter(Boolean))] : [];
+  const department_id = body.department_id ? String(body.department_id) : (deptIds[0] ?? null);
   const area_id = body.area_id ? String(body.area_id) : null;
   const supplier_id = body.supplier_id ? String(body.supplier_id) : null;
 
@@ -73,6 +75,10 @@ Deno.serve(async (req) => {
     property_id, department_id, area_id, product_id, supplier_id, name, unit, type, par_level, reorder_point, unit_cost,
   }).select("id").single();
   if (error) return bad(error.message, 500);
+
+  // department tags (many-to-many)
+  const tags = deptIds.length ? deptIds : (department_id ? [department_id] : []);
+  if (tags.length) await c.from("item_departments").insert(tags.map((d) => ({ item_id: item.id, department_id: d })));
 
   const { data: row } = await c.from("v_item_stock").select("*").eq("id", item.id).single();
   return json({ ok: true, item: row });

@@ -15,7 +15,7 @@ export function AddItemModal({ propertyId, branchName, departments, areas, units
   const [name, setName] = useState("");
   const [unit, setUnit] = useState(units[0]?.name ?? "piece");
   const [type] = useState<"fresh" | "store">("store"); // fresh/store removed from UI; new items default to store
-  const [deptId, setDeptId] = useState(defaultDept ?? "");
+  const [deptIds, setDeptIds] = useState<string[]>(defaultDept ? [defaultDept] : []);
   const [areaId, setAreaId] = useState("");
   const [par, setPar] = useState("0");
   const [reorder, setReorder] = useState("0");
@@ -31,7 +31,7 @@ export function AddItemModal({ propertyId, branchName, departments, areas, units
     try {
       await createItem({
         property_id: propertyId,
-        department_id: deptId || null,
+        department_ids: deptIds,
         area_id: areaId || null,
         name: name.trim(),
         unit: unit.trim() || "piece",
@@ -62,21 +62,31 @@ export function AddItemModal({ propertyId, branchName, departments, areas, units
             <label className={labelCls}>Item name</label>
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="e.g. Bath towels" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Department</label>
-              <select className={inputCls} value={deptId} onChange={(e) => setDeptId(e.target.value)}>
-                <option value="">— none —</option>
-                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Storage Area</label>
-              <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-                <option value="">— none —</option>
-                {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </div>
+          <div>
+            <label className={labelCls}>Departments <span className="font-normal text-stone-400">(tag one or more)</span></label>
+            {departments.length === 0 ? (
+              <p className="text-xs text-stone-400">No departments in this branch yet.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {departments.map((d) => {
+                  const on = deptIds.includes(d.id);
+                  return (
+                    <button type="button" key={d.id}
+                      onClick={() => setDeptIds((s) => on ? s.filter((x) => x !== d.id) : [...s, d.id])}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium ring-1 ${on ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+                      {d.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className={labelCls}>Storage Area</label>
+            <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+              <option value="">— none —</option>
+              {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
           </div>
           <div>
             <label className={labelCls}>Unit</label>
