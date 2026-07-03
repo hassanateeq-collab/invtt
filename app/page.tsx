@@ -29,6 +29,7 @@ import { BranchesModal } from "@/components/BranchesModal";
 import { RequestsView } from "@/components/RequestsView";
 import { NotesView } from "@/components/NotesView";
 import { CostView } from "@/components/CostView";
+import { DeptTakenView } from "@/components/DeptTakenView";
 import { NotificationToasts, type Toast } from "@/components/NotificationToasts";
 import { OrderDetailModal } from "@/components/OrderDetailModal";
 
@@ -759,6 +760,7 @@ export default function Page() {
             <p className="mt-2 px-1 text-xs text-stone-400">
               The “Buy” figure is how much to order to reach par. It updates automatically the moment stock moves.
             </p>
+            <DeptTakenView propertyId={propId} />
           </>
         )}
       </div>

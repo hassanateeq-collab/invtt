@@ -101,6 +101,22 @@ export async function fetchBuys(propertyId: string, fromISO: string, toISO: stri
   return (data ?? []) as unknown as BuyRow[];
 }
 
+// Approved (accepted / collected) requests for a branch in a date window —
+// used by the "Taken by department" report to sum quantities per department.
+export async function fetchTakenRequests(propertyId: string, fromISO: string, toISO: string): Promise<ReqOrder[]> {
+  const { data, error } = await supabase
+    .from("req_orders")
+    .select("*, req_order_items(*), properties(code, name)")
+    .eq("property_id", propertyId)
+    .in("status", ["accepted", "collected"])
+    .gte("created_at", fromISO)
+    .lte("created_at", toISO)
+    .order("created_at", { ascending: false })
+    .limit(3000);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ReqOrder[];
+}
+
 export async function fetchMovements(propertyId: string): Promise<MovementRow[]> {
   const { data, error } = await supabase
     .from("stock_movements")
