@@ -41,6 +41,8 @@ Deno.serve(async (req) => {
   if (action === "delete") {
     const id = String(body.id ?? "");
     if (!id) return bad("id is required");
+    // a fulfilled request may point at this movement — clear the link first
+    await c.from("requests").update({ fulfilled_movement_id: null }).eq("fulfilled_movement_id", id);
     const { error } = await c.from("stock_movements").delete().eq("id", id);
     if (error) return bad(error.message, 500);
     return json({ ok: true });
@@ -69,9 +71,16 @@ Deno.serve(async (req) => {
     const { data: items } = await c.from("items").select("id").eq("property_id", property_id);
     const ids = (items ?? []).map((i) => i.id);
     if (ids.length === 0) return json({ ok: true, deleted: 0 });
+    // clear any fulfilled-request links pointing at these movements, or the FK
+    // constraint (requests.fulfilled_movement_id) blocks the delete
+    const { data: movs } = await c.from("stock_movements").select("id").in("item_id", ids);
+    const movIds = (movs ?? []).map((m) => m.id);
+    for (let i = 0; i < movIds.length; i += 200) {
+      await c.from("requests").update({ fulfilled_movement_id: null }).in("fulfilled_movement_id", movIds.slice(i, i + 200));
+    }
     const { error } = await c.from("stock_movements").delete().in("item_id", ids);
     if (error) return bad(error.message, 500);
-    return json({ ok: true, deleted: ids.length });
+    return json({ ok: true, deleted: movIds.length });
   }
 
   return bad("Unknown action");
