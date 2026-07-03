@@ -769,7 +769,10 @@ export default function Page() {
           </div>
         </div>
       )}
-      {diaryOpen && <Diary branchName={branch ? `${branch.code} · ${branch.name}` : ""} movements={movements} properties={properties} onClose={() => setDiaryOpen(false)} />}
+      {diaryOpen && <Diary branchName={branch ? `${branch.code} · ${branch.name}` : ""} movements={movements} properties={properties}
+        canManage={isSuperadmin} propertyId={propId}
+        onChanged={async (msg) => { flash(msg); await refresh().catch(() => {}); }}
+        onClose={() => setDiaryOpen(false)} />}
       {usersOpen && isSuperadmin && (
         <UsersModal myId={myId} onClose={() => setUsersOpen(false)}
           onChanged={(msg) => flash(msg)} />

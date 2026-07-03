@@ -141,6 +141,12 @@ export const adjustStock = (item_id: string, quantity: number, reason: string) =
 // Superadmin only: set an item's "Used" (all-time usage) figure to any value.
 export const setUsage = (item_id: string, value: number) => callFn("reset-usage", { item_id, value });
 
+// Superadmin only: manage the Movement diary.
+export const deleteMovement = (id: string) => callFn("manage-movements", { action: "delete", id });
+export const updateMovement = (id: string, patch: { quantity?: number; reason?: string }) =>
+  callFn("manage-movements", { action: "update", id, ...patch });
+export const resetMovements = (property_id: string) => callFn("manage-movements", { action: "reset", property_id });
+
 export const transferStock = (from_item_id: string, to_property_id: string, quantity: number, reason?: string) =>
   callFn("transfer-stock", { from_item_id, to_property_id, quantity, reason });
 
