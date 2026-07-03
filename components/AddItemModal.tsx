@@ -50,7 +50,7 @@ export function AddItemModal({ propertyId, branchName, departments, areas, units
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-stone-200 bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-1 flex items-start justify-between">
           <h2 className="flex items-center gap-2 text-base font-semibold text-stone-900"><PackagePlus size={18} className="text-teal-700" /> Add item</h2>
           <button onClick={onClose} className="rounded-lg p-1 text-stone-400 hover:bg-stone-100"><X size={18} /></button>
