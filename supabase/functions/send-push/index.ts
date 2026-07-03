@@ -10,7 +10,16 @@ const db = () =>
     db: { schema: "invtt" }, auth: { persistSession: false },
   });
 
+// Allow the browser (the in-app "Send a test alert" button) to call this too,
+// not just the DB trigger — needs CORS + an OPTIONS preflight response.
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const body = await req.json().catch(() => ({}));
   const orderId = String(body.order_id ?? "");
   const c = db();
@@ -53,5 +62,5 @@ Deno.serve(async (req) => {
     }
   }));
 
-  return new Response(JSON.stringify({ ok: true, sent: subs?.length ?? 0 }), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ ok: true, sent: subs?.length ?? 0 }), { headers: { ...cors, "Content-Type": "application/json" } });
 });
