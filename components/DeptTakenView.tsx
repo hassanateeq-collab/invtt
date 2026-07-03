@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { ClipboardCheck, CalendarDays, Loader2, FolderTree } from "lucide-react";
-import type { ReqOrder } from "@/lib/types";
+import type { ReqOrder, ItemStock } from "@/lib/types";
 import { fetchTakenRequests } from "@/lib/api";
+
+const money = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 
 type RangeKey = "today" | "yesterday" | "week" | "month" | "year" | "custom";
 const RANGES: [RangeKey, string][] = [
@@ -29,7 +31,8 @@ const fmtDay = (d: Date) => d.toLocaleDateString(undefined, { day: "numeric", mo
 const num = (n: number) => n.toLocaleString();
 
 // How much each department took over the period, drillable to items.
-export function DeptTakenView({ propertyId }: { propertyId: string }) {
+export function DeptTakenView({ propertyId, items }: { propertyId: string; items: ItemStock[] }) {
+  const unitCost = useMemo(() => new Map(items.map((i) => [i.id, i.unit_cost || 0])), [items]);
   const [rangeKey, setRangeKey] = useState<RangeKey>("month");
   const [cFrom, setCFrom] = useState("");
   const [cTo, setCTo] = useState("");
@@ -49,23 +52,27 @@ export function DeptTakenView({ propertyId }: { propertyId: string }) {
     return () => { alive = false; };
   }, [propertyId, from, to]);
 
-  // group approved requests by department → total qty + per-item qty
+  // group approved requests by department → total qty + cost + per-item detail
   const groups = useMemo(() => {
-    const map = new Map<string, { name: string; qty: number; reqs: number; items: Map<string, number> }>();
+    const map = new Map<string, { name: string; qty: number; cost: number; reqs: number; items: Map<string, { qty: number; cost: number }> }>();
     for (const o of orders) {
       const name = o.department_name || "—";
-      const g = map.get(name) ?? { name, qty: 0, reqs: 0, items: new Map() };
+      const g = map.get(name) ?? { name, qty: 0, cost: 0, reqs: 0, items: new Map() };
       g.reqs += 1;
       for (const l of o.req_order_items ?? []) {
-        g.qty += l.quantity;
-        g.items.set(l.item_name, (g.items.get(l.item_name) ?? 0) + l.quantity);
+        const lineCost = l.quantity * (l.item_id ? (unitCost.get(l.item_id) ?? 0) : 0);
+        g.qty += l.quantity; g.cost += lineCost;
+        const cur = g.items.get(l.item_name) ?? { qty: 0, cost: 0 };
+        cur.qty += l.quantity; cur.cost += lineCost;
+        g.items.set(l.item_name, cur);
       }
       map.set(name, g);
     }
-    return [...map.values()].sort((a, b) => b.qty - a.qty);
-  }, [orders]);
+    return [...map.values()].sort((a, b) => b.cost - a.cost || b.qty - a.qty);
+  }, [orders, unitCost]);
 
   const totalQty = useMemo(() => groups.reduce((s, g) => s + g.qty, 0), [groups]);
+  const totalCost = useMemo(() => groups.reduce((s, g) => s + g.cost, 0), [groups]);
   const totalReqs = useMemo(() => groups.reduce((s, g) => s + g.reqs, 0), [groups]);
 
   return (
@@ -99,8 +106,8 @@ export function DeptTakenView({ propertyId }: { propertyId: string }) {
           <p className="text-xs text-stone-500">{fmtDay(from)} — {fmtDay(to)}</p>
         </div>
         <div className="text-right">
-          <span className="tnum text-2xl font-bold text-teal-800">{loading ? <Loader2 size={20} className="inline animate-spin text-teal-500" /> : num(totalQty)}</span>
-          <p className="text-[11px] text-stone-500">units · {totalReqs} request{totalReqs === 1 ? "" : "s"}</p>
+          <span className="tnum text-2xl font-bold text-teal-800">{loading ? <Loader2 size={20} className="inline animate-spin text-teal-500" /> : money(totalCost)}</span>
+          <p className="text-[11px] text-stone-500">{num(totalQty)} units · {totalReqs} request{totalReqs === 1 ? "" : "s"}</p>
         </div>
       </div>
 
@@ -112,8 +119,8 @@ export function DeptTakenView({ propertyId }: { propertyId: string }) {
             <button key={g.name} onClick={() => setSel(active ? null : g.name)}
               className={`rounded-2xl border p-3 text-left transition ${active ? "border-teal-600 bg-teal-50 ring-1 ring-teal-600" : "border-stone-200 bg-white hover:border-stone-300 hover:shadow-sm"}`}>
               <div className="flex items-center gap-1.5 text-xs font-medium text-stone-500"><FolderTree size={13} className="text-stone-400" /> <span className="truncate">{g.name}</span></div>
-              <div className="tnum mt-1 text-2xl font-bold text-teal-700">{num(g.qty)}</div>
-              <div className="text-[11px] text-stone-400">{g.reqs} request{g.reqs === 1 ? "" : "s"}</div>
+              <div className="tnum mt-1 text-2xl font-bold text-teal-700">{money(g.cost)}</div>
+              <div className="text-[11px] text-stone-400">{num(g.qty)} units · {g.reqs} req{g.reqs === 1 ? "" : "s"}</div>
             </button>
           );
         })}
@@ -125,25 +132,27 @@ export function DeptTakenView({ propertyId }: { propertyId: string }) {
         if (!groups.length) return <p className="mt-3 rounded-2xl border border-dashed border-stone-200 bg-white px-4 py-6 text-center text-sm text-stone-400">No approved requests in this period.</p>;
         const g = groups.find((x) => x.name === sel);
         if (!g) return <p className="mt-3 rounded-2xl border border-dashed border-stone-200 bg-white px-4 py-5 text-center text-sm text-stone-400">Tap a department to see which items it took.</p>;
-        const items = [...g.items.entries()].sort((a, b) => b[1] - a[1]);
+        const rows = [...g.items.entries()].sort((a, b) => b[1].cost - a[1].cost || b[1].qty - a[1].qty);
         return (
           <div className="mt-3 overflow-hidden rounded-2xl border border-stone-200 bg-white">
             <div className="flex items-center justify-between border-b border-stone-100 px-4 py-2.5">
               <span className="text-sm font-semibold text-stone-800">{g.name}</span>
-              <span className="tnum text-sm font-semibold text-teal-700">{num(g.qty)} units</span>
+              <span className="text-sm text-stone-500">{num(g.qty)} units · <span className="font-semibold text-teal-700">{money(g.cost)}</span></span>
             </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wide text-stone-400">
                   <th className="px-4 py-2 font-medium">Item</th>
-                  <th className="px-4 py-2 text-right font-medium">Qty taken</th>
+                  <th className="px-3 py-2 text-right font-medium">Qty taken</th>
+                  <th className="px-4 py-2 text-right font-medium">Cost</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map(([name, qty]) => (
+                {rows.map(([name, v]) => (
                   <tr key={name} className="border-t border-stone-50">
                     <td className="px-4 py-2 text-stone-700">{name}</td>
-                    <td className="tnum px-4 py-2 text-right font-medium text-teal-700">{num(qty)}</td>
+                    <td className="tnum px-3 py-2 text-right text-stone-600">{num(v.qty)}</td>
+                    <td className="tnum px-4 py-2 text-right font-medium text-teal-700">{money(v.cost)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -151,7 +160,7 @@ export function DeptTakenView({ propertyId }: { propertyId: string }) {
           </div>
         );
       })()}
-      <p className="mt-2 px-1 text-xs text-stone-400">Counts accepted &amp; collected requests for this branch in the chosen period, grouped by the department that requested them.</p>
+      <p className="mt-2 px-1 text-xs text-stone-400">Counts accepted &amp; collected requests for this branch in the chosen period, grouped by the department that requested them. Cost = quantity taken × each item’s unit cost.</p>
     </div>
   );
 }

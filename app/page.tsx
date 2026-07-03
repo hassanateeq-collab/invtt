@@ -760,7 +760,7 @@ export default function Page() {
             <p className="mt-2 px-1 text-xs text-stone-400">
               The “Buy” figure is how much to order to reach par. It updates automatically the moment stock moves.
             </p>
-            <DeptTakenView propertyId={propId} />
+            <DeptTakenView propertyId={propId} items={allItems} />
           </>
         )}
       </div>
