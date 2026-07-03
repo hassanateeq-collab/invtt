@@ -7,7 +7,7 @@ import {
 import type { Area, Department, ItemStock, MovementRow, Note, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes, updateItem, setUsage, deleteOrder, wipeOrders,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes, updateItem, setUsage, deleteOrder, wipeOrders, sendTestPush,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -473,6 +473,7 @@ export default function Page() {
             <NotificationBell orders={orders} onOpenOrder={(o) => setSelectedOrder(o)}
               onSeen={onSeenOrders} onSeeAll={() => setView("requests")} volume={bellVol} onVolume={changeBellVol}
               pushStatus={pushStatus} onEnableAlerts={enableAlerts}
+              onTest={async () => { try { await sendTestPush(); flash("Test alert sent — check your device"); } catch (e) { flash(e instanceof Error ? e.message : "Test failed"); } }}
               canManage={isSuperadmin} onDelete={onDeleteOrder} onWipe={onWipeOrders} />
             {isSuperadmin && (
               <button onClick={() => setUsersOpen(true)} title="Manage users"

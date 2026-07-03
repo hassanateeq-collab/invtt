@@ -18,7 +18,11 @@ Deno.serve(async (req) => {
   let title = "New stock request";
   let msg = "A new request just came in.";
   let tag = "hamsun-request";
-  if (orderId) {
+  if (body.test) {
+    title = "✅ Test alert";
+    msg = "Background notifications are working on this device.";
+    tag = "hamsun-test";
+  } else if (orderId) {
     const { data: o } = await c.from("req_orders")
       .select("number, requester_name, department_name, req_order_items(item_name, quantity)")
       .eq("id", orderId).maybeSingle();

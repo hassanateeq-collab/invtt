@@ -141,6 +141,9 @@ export const adjustStock = (item_id: string, quantity: number, reason: string) =
 // Superadmin only: set an item's "Used" (all-time usage) figure to any value.
 export const setUsage = (item_id: string, value: number) => callFn("reset-usage", { item_id, value });
 
+// Fire a test Web Push to all subscribed devices (to check background alerts).
+export const sendTestPush = () => callFn("send-push", { test: true });
+
 // Superadmin only: delete a request/notification, or wipe them all.
 export const deleteOrder = (id: string) => callFn("manage-orders", { action: "delete", id });
 export const wipeOrders = () => callFn("manage-orders", { action: "wipe" });

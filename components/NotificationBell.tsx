@@ -17,13 +17,14 @@ const statusWord: Record<OrderStatus, string> = {
   pending: "pending", accepted: "accepted", rejected: "rejected", collected: "collected",
 };
 
-export function NotificationBell({ orders, onOpenOrder, onSeen, onSeeAll, volume, onVolume, pushStatus, onEnableAlerts, canManage = false, onDelete, onWipe }: {
+export function NotificationBell({ orders, onOpenOrder, onSeen, onSeeAll, volume, onVolume, pushStatus, onEnableAlerts, onTest, canManage = false, onDelete, onWipe }: {
   orders: ReqOrder[];
   onOpenOrder: (o: ReqOrder) => void;
   onSeen: (ids: string[]) => void;
   onSeeAll: () => void;
   volume: number; onVolume: (v: number) => void;
   pushStatus: "idle" | "granted" | "denied" | "unsupported" | "error"; onEnableAlerts: () => void;
+  onTest?: () => void | Promise<void>;
   canManage?: boolean;
   onDelete?: (id: string) => void | Promise<void>;
   onWipe?: () => void | Promise<void>;
@@ -100,7 +101,15 @@ export function NotificationBell({ orders, onOpenOrder, onSeen, onSeeAll, volume
                 <div className="mt-3 border-t border-stone-200 pt-3">
                   <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-stone-600"><Smartphone size={13} /> Background alerts</p>
                   {pushStatus === "granted" ? (
-                    <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><Check size={13} /> On for this device.</p>
+                    <div className="space-y-2">
+                      <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><Check size={13} /> On for this device.</p>
+                      {onTest && (
+                        <button onClick={() => onTest()}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-stone-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-stone-900">
+                          <Bell size={13} /> Send a test alert
+                        </button>
+                      )}
+                    </div>
                   ) : pushStatus === "denied" ? (
                     <p className="text-[11px] text-stone-400">Blocked. Allow notifications for this site in settings, then reopen.</p>
                   ) : pushStatus === "unsupported" ? (
