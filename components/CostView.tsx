@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Wallet, ChevronDown, FolderTree, CalendarDays, Loader2 } from "lucide-react";
+import { Wallet, ChevronDown, FolderTree, CalendarDays, Loader2, FileDown, Download, X } from "lucide-react";
+import jsPDF from "jspdf";
 import type { Department, ItemStock, BuyRow } from "@/lib/types";
 import { fetchBuys } from "@/lib/api";
 
@@ -41,6 +42,7 @@ export function CostView({ propertyId, branchName, departments, items }: {
   const [loading, setLoading] = useState(false);
   const [selDept, setSelDept] = useState<string | null>(null);
   const [openStock, setOpenStock] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
 
   const { from, to } = useMemo(() => rangeFor(rangeKey, cFrom, cTo), [rangeKey, cFrom, cTo]);
 
@@ -82,6 +84,55 @@ export function CostView({ propertyId, branchName, departments, items }: {
     return [...map.values()].sort((a, b) => b.cost - a.cost);
   }
 
+  // ---- PDF report: full branch spend for the chosen period -----------------
+  function buildReport() {
+    const doc = new jsPDF();
+    const RX = 196; // right margin x
+    let y = 16;
+    doc.setFontSize(16); doc.setTextColor(20);
+    doc.text(`Cost Report — ${branchName}`, 14, y); y += 7;
+    doc.setFontSize(10); doc.setTextColor(120);
+    doc.text("Hamsun · Supply Chain and Inventory", 14, y); y += 6;
+    doc.setTextColor(60); doc.setFontSize(11);
+    doc.text(`Period: ${fmtDay(from)} — ${fmtDay(to)}`, 14, y); y += 6;
+    doc.text(`Total spent on buying: ${money(totalSpent)}`, 14, y); y += 4;
+    doc.setDrawColor(200); doc.line(14, y, RX, y); y += 8;
+
+    const bold = (b: boolean) => doc.setFont(undefined as unknown as string, b ? "bold" : "normal");
+    const withCost = deptSpend.filter((d) => d.rows.length > 0);
+    if (!withCost.length) {
+      doc.setTextColor(120); doc.text("No purchases in this period.", 14, y);
+    } else {
+      for (const g of withCost) {
+        if (y > 272) { doc.addPage(); y = 16; }
+        bold(true); doc.setFontSize(12); doc.setTextColor(20);
+        doc.text(g.name, 14, y);
+        doc.text(money(g.cost), RX, y, { align: "right" }); y += 2;
+        doc.setDrawColor(228); doc.line(14, y, RX, y); y += 5;
+        bold(false); doc.setFontSize(10); doc.setTextColor(70);
+        for (const l of itemLines(g.rows)) {
+          if (y > 286) { doc.addPage(); y = 16; }
+          doc.text(`• ${l.name}`, 16, y);
+          doc.text(`${l.qty} ${l.unit}`.trim(), 150, y, { align: "right" });
+          doc.text(money(l.cost), RX, y, { align: "right" });
+          y += 5.5;
+        }
+        y += 5;
+      }
+      if (y > 274) { doc.addPage(); y = 16; }
+      doc.setDrawColor(200); doc.line(14, y, RX, y); y += 6;
+      bold(true); doc.setFontSize(13); doc.setTextColor(20);
+      doc.text("Grand total", 14, y);
+      doc.text(money(totalSpent), RX, y, { align: "right" });
+    }
+    return doc;
+  }
+  function openReport() {
+    const blob = buildReport().output("blob");
+    setPreview({ url: URL.createObjectURL(blob), name: `Cost-${branchName.replace(/[^a-z0-9]+/gi, "-")}.pdf` });
+  }
+  function closePreview() { setPreview((p) => { if (p) URL.revokeObjectURL(p.url); return null; }); }
+
   // ---- existing stock-on-hand / to-buy section (kept below) ----------------
   const branchItems = useMemo(() => items.filter((i) => i.property_id === propertyId), [items, propertyId]);
   const stockValue = (i: ItemStock) => Math.max(0, i.current_stock) * (i.unit_cost || 0);
@@ -97,6 +148,10 @@ export function CostView({ propertyId, branchName, departments, items }: {
     <div className="mt-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-stone-700"><Wallet size={16} className="text-teal-700" /> Cost — {branchName}</h2>
+        <button onClick={openReport} disabled={loading}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50">
+          <FileDown size={14} /> PDF report
+        </button>
       </div>
 
       {/* ---- date range tiles + custom calendar --------------------------- */}
@@ -242,6 +297,24 @@ export function CostView({ propertyId, branchName, departments, items }: {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {preview && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-stone-900/60 p-3 sm:p-6" onClick={closePreview}>
+          <div className="flex h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-stone-200 px-4 py-2.5">
+              <span className="flex items-center gap-2 text-sm font-semibold text-stone-700"><FileDown size={15} className="text-teal-700" /> {preview.name}</span>
+              <div className="flex items-center gap-1.5">
+                <a href={preview.url} download={preview.name}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800">
+                  <Download size={14} /> Download
+                </a>
+                <button onClick={closePreview} className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"><X size={18} /></button>
+              </div>
+            </div>
+            <iframe title={preview.name} src={preview.url} className="flex-1 bg-stone-100" />
+          </div>
         </div>
       )}
     </div>
