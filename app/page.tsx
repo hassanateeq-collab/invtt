@@ -32,7 +32,6 @@ import { CostView } from "@/components/CostView";
 import { NotificationToasts, type Toast } from "@/components/NotificationToasts";
 import { OrderDetailModal } from "@/components/OrderDetailModal";
 
-type Kind = "all" | "fresh" | "store";
 type Modal = { item: ItemStock; kind: "receive" | "issue" | "adjust" } | null;
 type HubModal = { item: ItemStock; kind: "transfer" | "request" } | null;
 
@@ -64,7 +63,7 @@ export default function Page() {
   const [pushStatus, setPushStatus] = useState<"idle" | "granted" | "denied" | "unsupported" | "error">("idle");
 
   const [view, setView] = useState<"inventory" | "suppliers" | "areas" | "requests" | "notes" | "cost">("inventory");
-  const [kind, setKind] = useState<Kind>("all");
+  const [areaFilter, setAreaFilter] = useState<string>("all"); // "all" | area id | "none"
   const [attention, setAttention] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StockStatus | null>(null);
   const [query, setQuery] = useState("");
@@ -428,12 +427,12 @@ export default function Page() {
   const visible = useMemo(() => {
     const order: Record<StockStatus, number> = { out: 0, low: 1, ok: 2 };
     return items
-      .filter((i) => (kind === "all" ? true : i.type === kind))
+      .filter((i) => (areaFilter === "all" ? true : areaFilter === "none" ? !i.area_id : i.area_id === areaFilter))
       .filter((i) => (statusFilter ? i.status === statusFilter : true))
       .filter((i) => (attention ? i.status !== "ok" : true))
       .filter((i) => i.name.toLowerCase().includes(query.trim().toLowerCase()))
       .sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name));
-  }, [items, kind, statusFilter, attention, query]);
+  }, [items, areaFilter, statusFilter, attention, query]);
 
   function scrollTo(ref: React.RefObject<HTMLDivElement | null>) {
     setTimeout(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -600,7 +599,7 @@ export default function Page() {
             {/* dashboard */}
             <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
               <Card label="Items tracked" value={counts.total} Icon={PackageCheck} tone="teal"
-                    onClick={() => { setStatusFilter(null); setAttention(false); setKind("all"); }} />
+                    onClick={() => { setStatusFilter(null); setAttention(false); setAreaFilter("all"); }} />
               <Card label="Running low" value={counts.low} Icon={TriangleAlert} tone="amber"
                     onClick={() => { setStatusFilter("low"); setAttention(false); scrollTo(listRef); }} />
               <Card label="Out of stock" value={counts.out} Icon={PackageX} tone="red"
@@ -647,13 +646,24 @@ export default function Page() {
 
             {/* filter bar — sticks to the top while the item list scrolls */}
             <div className="sticky top-0 z-30 -mx-4 mt-5 flex flex-col gap-3 border-b border-stone-200/60 bg-[#f5f5f4] px-4 py-2.5 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex rounded-xl bg-stone-100 p-1 text-sm">
-                  {([["all", "All"], ["fresh", "Kitchen & fresh"], ["store", "Storeroom"]] as [Kind, string][]).map(([k, lbl]) => (
-                    <button key={k} onClick={() => setKind(k)}
-                      className={`rounded-lg px-3 py-1.5 font-medium ${kind === k ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>{lbl}</button>
-                  ))}
-                </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* Storage areas — filter items by where they're physically kept */}
+                <button onClick={() => setAreaFilter("all")}
+                  className={`shrink-0 rounded-xl px-3 py-1.5 text-sm font-medium ring-1 ${areaFilter === "all" ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+                  All
+                </button>
+                {branchAreas.map((a) => (
+                  <button key={a.id} onClick={() => setAreaFilter(a.id)}
+                    className={`inline-flex shrink-0 items-center gap-1 rounded-xl px-3 py-1.5 text-sm font-medium ring-1 ${areaFilter === a.id ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-600 ring-stone-300 hover:bg-stone-50"}`}>
+                    <MapPin size={13} /> {a.name}
+                  </button>
+                ))}
+                {allItems.some((i) => i.property_id === propId && !i.area_id) && (
+                  <button onClick={() => setAreaFilter("none")}
+                    className={`shrink-0 rounded-xl px-3 py-1.5 text-sm font-medium ring-1 ${areaFilter === "none" ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-stone-500 ring-stone-300 hover:bg-stone-50"}`}>
+                    No area
+                  </button>
+                )}
                 <button onClick={() => { setAttention((a) => !a); setStatusFilter(null); }}
                   className={`shrink-0 rounded-xl px-3 py-1.5 text-sm font-medium ring-1 ${attention ? "bg-amber-50 text-amber-700 ring-amber-200" : "bg-white text-stone-500 ring-stone-300 hover:bg-stone-50"}`}>
                   Needs attention
@@ -747,7 +757,7 @@ export default function Page() {
         )}
       </div>
 
-      {modal && <ActionModal item={modal.item} kind={modal.kind} onClose={() => setModal(null)} onDone={afterWrite} />}
+      {modal && <ActionModal item={modal.item} kind={modal.kind} departments={branchDepts} onClose={() => setModal(null)} onDone={afterWrite} />}
       {editItem && <EditItemModal item={editItem} suppliers={suppliers}
         departments={departments.filter((d) => d.property_id === editItem.property_id)}
         areas={areas.filter((a) => a.property_id === editItem.property_id)} units={units}

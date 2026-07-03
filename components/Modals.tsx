@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { X, AlertTriangle, Plus, Minus } from "lucide-react";
-import type { ItemStock } from "@/lib/types";
+import type { Department, ItemStock } from "@/lib/types";
 import { adjustStock, issueStock, receiveStock } from "@/lib/api";
 
 type Kind = "receive" | "issue" | "adjust";
@@ -54,12 +54,13 @@ const inputCls =
 const labelCls = "mb-1 block text-sm font-medium text-stone-700";
 
 export function ActionModal({
-  item, kind, onClose, onDone,
+  item, kind, departments = [], onClose, onDone,
 }: {
-  item: ItemStock; kind: Kind; onClose: () => void; onDone: (msg: string) => void;
+  item: ItemStock; kind: Kind; departments?: Department[]; onClose: () => void; onDone: (msg: string) => void;
 }) {
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState("");
+  const [deptId, setDeptId] = useState("");
   const [expiry, setExpiry] = useState("");
   const [dir, setDir] = useState<"increase" | "reduce">("reduce");
   const [busy, setBusy] = useState(false);
@@ -79,8 +80,10 @@ export function ActionModal({
         await receiveStock(item.id, n, reason.trim() || "Delivery", item.type === "fresh" ? expiry : undefined);
         onDone(`Received ${n} ${item.unit} of ${item.name}`);
       } else if (kind === "issue") {
-        await issueStock(item.id, n, reason.trim() || "Issued");
-        onDone(`Issued ${n} ${item.unit} of ${item.name}`);
+        const deptName = departments.find((d) => d.id === deptId)?.name;
+        const issueReason = [deptName ? `Issued to ${deptName}` : "", reason.trim()].filter(Boolean).join(" · ") || "Issued";
+        await issueStock(item.id, n, issueReason);
+        onDone(`Issued ${n} ${item.unit} of ${item.name}${deptName ? ` to ${deptName}` : ""}`);
       } else {
         const signed = dir === "reduce" ? -n : n;
         await adjustStock(item.id, signed, reason.trim());
@@ -122,14 +125,24 @@ export function ActionModal({
         )}
       </div>
 
+      {kind === "issue" && departments.length > 0 && (
+        <div className="mb-3">
+          <label className={labelCls}>Issue to which department?</label>
+          <select className={inputCls} value={deptId} onChange={(e) => setDeptId(e.target.value)}>
+            <option value="">— choose a department —</option>
+            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
+      )}
+
       <div className="mb-1">
         <label className={labelCls}>
           {kind === "receive" ? "Reason (supplier / delivery)"
-            : kind === "issue" ? "Reason / department"
+            : kind === "issue" ? "Note (optional)"
             : "Reason (breakage, recount…)"}
         </label>
         <input className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)}
-               placeholder={kind === "receive" ? "e.g. Green Valley delivery" : kind === "issue" ? "e.g. Kitchen" : "e.g. Breakage"} />
+               placeholder={kind === "receive" ? "e.g. Green Valley delivery" : kind === "issue" ? "e.g. for morning shift" : "e.g. Breakage"} />
       </div>
 
       {kind === "receive" && item.type === "fresh" && (
