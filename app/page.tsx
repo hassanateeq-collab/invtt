@@ -7,7 +7,7 @@ import {
 import type { Area, Department, ItemStock, MovementRow, Note, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
   fetchAllItems, fetchMovements, fetchRequests, fetchProperties, fetchSuppliers, fetchDepartments,
-  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes, updateItem, setUsage,
+  fetchAreas, fetchUnits, fulfilRequest, rejectRequest, markSeen, markOrdersSeen, fetchOrders, decideOrder, deleteItem, fetchNotes, updateItem, setUsage, deleteOrder, wipeOrders,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { playBell } from "@/lib/bell";
@@ -361,6 +361,18 @@ export default function Page() {
     catch (e) { flash(e instanceof Error ? e.message : "Couldn’t save price"); await refresh().catch(() => {}); }
   }
 
+  // Superadmin: delete one notification/request, or wipe them all (optimistic).
+  async function onDeleteOrder(id: string) {
+    setOrders((os) => os.filter((o) => o.id !== id));
+    try { await deleteOrder(id); }
+    catch (e) { flash(e instanceof Error ? e.message : "Couldn’t delete"); await reloadOrders(); }
+  }
+  async function onWipeOrders() {
+    setOrders([]);
+    try { await wipeOrders(); flash("All notifications wiped"); }
+    catch (e) { flash(e instanceof Error ? e.message : "Couldn’t wipe"); await reloadOrders(); }
+  }
+
   // Superadmin: set an item's "Used" (all-time) figure to any value (optimistic).
   async function onSetUsage(item: ItemStock, value: number) {
     const v = Math.max(0, Math.round(value));
@@ -460,7 +472,8 @@ export default function Page() {
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <NotificationBell orders={orders} onOpenOrder={(o) => setSelectedOrder(o)}
               onSeen={onSeenOrders} onSeeAll={() => setView("requests")} volume={bellVol} onVolume={changeBellVol}
-              pushStatus={pushStatus} onEnableAlerts={enableAlerts} />
+              pushStatus={pushStatus} onEnableAlerts={enableAlerts}
+              canManage={isSuperadmin} onDelete={onDeleteOrder} onWipe={onWipeOrders} />
             {isSuperadmin && (
               <button onClick={() => setUsersOpen(true)} title="Manage users"
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 sm:px-3">
