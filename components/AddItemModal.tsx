@@ -14,7 +14,7 @@ export function AddItemModal({ propertyId, branchName, departments, areas, units
 }) {
   const [name, setName] = useState("");
   const [unit, setUnit] = useState(units[0]?.name ?? "piece");
-  const [type, setType] = useState<"fresh" | "store">("store");
+  const [type] = useState<"fresh" | "store">("store"); // fresh/store removed from UI; new items default to store
   const [deptId, setDeptId] = useState(defaultDept ?? "");
   const [areaId, setAreaId] = useState("");
   const [par, setPar] = useState("0");
@@ -78,20 +78,11 @@ export function AddItemModal({ propertyId, branchName, departments, areas, units
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Unit</label>
-              <select className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)}>
-                {units.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Kind</label>
-              <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as "fresh" | "store")}>
-                <option value="store">Storeroom</option>
-                <option value="fresh">Fresh</option>
-              </select>
-            </div>
+          <div>
+            <label className={labelCls}>Unit</label>
+            <select className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)}>
+              {units.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

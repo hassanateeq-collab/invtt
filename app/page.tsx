@@ -699,9 +699,11 @@ export default function Page() {
                       <div className="sm:col-span-4">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium text-stone-900">{i.name}</span>
-                          <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${i.type === "fresh" ? "bg-rose-50 text-rose-600" : "bg-stone-100 text-stone-500"}`}>
-                            {i.type === "fresh" ? "fresh" : "store"}
-                          </span>
+                          {i.area_id && branchAreas.find((a) => a.id === i.area_id) && (
+                            <span className="inline-flex items-center gap-0.5 rounded-md bg-stone-100 px-1.5 py-0.5 text-[11px] font-medium text-stone-500">
+                              <MapPin size={10} /> {branchAreas.find((a) => a.id === i.area_id)?.name}
+                            </span>
+                          )}
                           {exp && <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${exp.cls}`}>{exp.label}</span>}
                         </div>
                         <p className="mt-0.5 text-xs text-stone-400">par {i.par_level} · reorder at {i.reorder_point}</p>

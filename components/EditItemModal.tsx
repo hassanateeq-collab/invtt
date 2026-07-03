@@ -16,7 +16,7 @@ export function EditItemModal({ item, suppliers, departments, areas, units, onCl
   const [areaId, setAreaId] = useState(item.area_id ?? "");
   const [name, setName] = useState(item.name);
   const [unit, setUnit] = useState(item.unit);
-  const [type, setType] = useState<"fresh" | "store">(item.type);
+  const [type] = useState<"fresh" | "store">(item.type); // preserved, no longer user-editable
   const [stock, setStock] = useState(String(item.current_stock));
   const [par, setPar] = useState(String(item.par_level));
   const [reorder, setReorder] = useState(String(item.reorder_point));
@@ -68,20 +68,11 @@ export function EditItemModal({ item, suppliers, departments, areas, units, onCl
             <label className={labelCls}>Item name</label>
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Unit</label>
-              <select className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)}>
-                {(units.some((u) => u.name === unit) ? units.map((u) => u.name) : [unit, ...units.map((u) => u.name)]).map((u) => <option key={u} value={u}>{u}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Kind</label>
-              <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as "fresh" | "store")}>
-                <option value="fresh">Fresh</option>
-                <option value="store">Storeroom</option>
-              </select>
-            </div>
+          <div>
+            <label className={labelCls}>Unit</label>
+            <select className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)}>
+              {(units.some((u) => u.name === unit) ? units.map((u) => u.name) : [unit, ...units.map((u) => u.name)]).map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
           </div>
 
           <div>
