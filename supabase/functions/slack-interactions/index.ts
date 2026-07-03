@@ -1,7 +1,8 @@
 // slack-interactions — Slack Interactivity endpoint.
-//   start_request  -> open the guided request modal (pick items one by one)
-//   pick_dept / add_item / remove -> build the cart
-//   req_submit     -> create a numbered order + lines
+//   start_request  -> open the guided request modal
+//   pick_dept      -> list every item in that department (alphabetical) with a
+//                     quantity field each — no dropdown to open
+//   req_submit     -> create a numbered order from the items given a quantity
 //   quick_branch   -> open the "choose branch & department" modal (quick req)
 //   quick_submit   -> create the order for a quick req (item stays unlinked so
 //                     the keeper resolves it into the requester's department)
@@ -44,7 +45,6 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 type Meta = {
   name?: string; slack_id?: string; channel?: string; button_ts?: string; thread_ts?: string;
   department_id?: string; department_name?: string; property_id?: string | null;
-  cart?: { id: string; name: string; unit: string; qty: string }[];
 };
 
 async function deptOptions() {
@@ -54,21 +54,12 @@ async function deptOptions() {
     value: String(d.id),
   }));
 }
-async function addableOptions(deptId: string, exclude: string[]) {
+// Every item in a department, alphabetical — one row each in the modal.
+async function deptItems(deptId: string) {
   const { data } = await db().from("items").select("id, name, unit").eq("department_id", deptId).order("name");
-  return (data ?? [])
-    .filter((i: Record<string, unknown>) => !exclude.includes(String(i.id)))
-    .map((i: Record<string, unknown>) => ({
-      text: { type: "plain_text", text: `${i.name}${i.unit ? ` (${i.unit})` : ""}`.slice(0, 75) },
-      value: String(i.id),
-    }));
+  return (data ?? []) as { id: string; name: string; unit: string }[];
 }
-function syncCart(meta: Meta, values: Record<string, Record<string, { value?: string }>>) {
-  for (const it of meta.cart ?? []) {
-    const v = values?.[`qty_${it.id}`]?.v?.value;
-    if (v !== undefined) it.qty = v;
-  }
-}
+
 async function buildView(meta: Meta) {
   const opts = await deptOptions();
   const selected = meta.department_id ? opts.find((o) => o.value === meta.department_id) : undefined;
@@ -81,23 +72,22 @@ async function buildView(meta: Meta) {
     }] },
   ];
   if (meta.department_id) {
+    const items = await deptItems(meta.department_id);
     blocks.push({ type: "divider" });
-    for (const it of meta.cart ?? []) {
-      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${it.name}*${it.unit ? ` _(${it.unit})_` : ""}` },
-        accessory: { type: "button", style: "danger", text: { type: "plain_text", text: "Remove" }, action_id: "remove", value: it.id } });
-      blocks.push({ type: "input", block_id: `qty_${it.id}`, label: { type: "plain_text", text: `Quantity${it.unit ? ` (${it.unit})` : ""}` },
-        element: { type: "plain_text_input", action_id: "v", placeholder: { type: "plain_text", text: "e.g. 5" }, ...(it.qty ? { initial_value: String(it.qty) } : {}) } });
-    }
-    const addOpts = await addableOptions(meta.department_id, (meta.cart ?? []).map((c) => c.id));
-    if (addOpts.length) {
-      blocks.push({ type: "input", block_id: "additem", optional: true, label: { type: "plain_text", text: "Add an item" },
-        element: { type: "static_select", action_id: "v", placeholder: { type: "plain_text", text: "Pick an item…" }, options: addOpts.slice(0, 100) } });
-      blocks.push({ type: "actions", block_id: "addbtn", elements: [{ type: "button", text: { type: "plain_text", text: "➕ Add item" }, action_id: "add_item" }] });
+    if (!items.length) {
+      blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "No items in this department yet." }] });
     } else {
-      blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "All items in this department are added." }] });
+      blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "Type a quantity next to the items you need, then tap *Request*." }] });
+      // one quantity field per item (alphabetical) — no dropdown to open
+      for (const it of items.slice(0, 90)) {
+        blocks.push({ type: "input", optional: true, block_id: `qty_${it.id}`,
+          label: { type: "plain_text", text: `${it.name}${it.unit ? ` (${it.unit})` : ""}`.slice(0, 150) },
+          element: { type: "plain_text_input", action_id: "v", placeholder: { type: "plain_text", text: "qty" } } });
+      }
+      if (items.length > 90) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: `Showing the first 90 of ${items.length} items.` }] });
     }
   } else {
-    blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "Pick a department to start adding items." }] });
+    blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "Pick a department to see its items." }] });
   }
   return { type: "modal", callback_id: "req_submit", private_metadata: JSON.stringify(meta),
     title: { type: "plain_text", text: "Stock request" }, submit: { type: "plain_text", text: "Request" }, close: { type: "plain_text", text: "Cancel" }, blocks };
@@ -138,14 +128,12 @@ Deno.serve(async (req) => {
   if (payload.type === "block_actions") {
     const action = payload.actions?.[0] ?? {};
     const meta: Meta = JSON.parse(payload.view?.private_metadata || "{}");
-    const values = payload.view?.state?.values ?? {};
 
     if (action.action_id === "start_request") {
       const m: Meta = { name: payload.user?.name || payload.user?.username || "Someone", slack_id: payload.user?.id,
         channel: payload.channel?.id,
         thread_ts: payload.message?.thread_ts || payload.message?.ts, // thread root (the "req" message)
-        button_ts: payload.message?.ts,                               // the Start-request button message
-        cart: [] };
+        button_ts: payload.message?.ts };                             // the Start-request button message
       await slack("views.open", BOT(), { trigger_id: payload.trigger_id, view: await buildView(m) });
       return ok();
     }
@@ -164,23 +152,7 @@ Deno.serve(async (req) => {
     if (action.action_id === "pick_dept") {
       const deptId = action.selected_option?.value;
       const { data: dept } = await db().from("departments").select("id, name, property_id").eq("id", deptId).maybeSingle();
-      meta.department_id = deptId; meta.department_name = dept?.name ?? ""; meta.property_id = dept?.property_id ?? null; meta.cart = [];
-      await slack("views.update", BOT(), { view_id: payload.view.id, hash: payload.view.hash, view: await buildView(meta) });
-      return ok();
-    }
-    if (action.action_id === "add_item") {
-      syncCart(meta, values);
-      const sel = values?.additem?.v?.selected_option?.value;
-      if (sel && !(meta.cart ?? []).some((c) => c.id === sel)) {
-        const { data: it } = await db().from("items").select("id, name, unit").eq("id", sel).maybeSingle();
-        meta.cart = [...(meta.cart ?? []), { id: sel, name: it?.name ?? "item", unit: it?.unit ?? "", qty: "" }];
-      }
-      await slack("views.update", BOT(), { view_id: payload.view.id, hash: payload.view.hash, view: await buildView(meta) });
-      return ok();
-    }
-    if (action.action_id === "remove") {
-      syncCart(meta, values);
-      meta.cart = (meta.cart ?? []).filter((c) => c.id !== action.value);
+      meta.department_id = deptId; meta.department_name = dept?.name ?? ""; meta.property_id = dept?.property_id ?? null;
       await slack("views.update", BOT(), { view_id: payload.view.id, hash: payload.view.hash, view: await buildView(meta) });
       return ok();
     }
@@ -193,17 +165,27 @@ Deno.serve(async (req) => {
     return ok();
   }
 
-  // guided cart submit
+  // guided submit — read a quantity from each item row
   if (payload.type === "view_submission" && payload.view?.callback_id === "req_submit") {
     const meta: Meta = JSON.parse(payload.view.private_metadata || "{}");
     const values = payload.view.state?.values ?? {};
-    syncCart(meta, values);
     if (!meta.department_id) return jsonResp({ response_action: "errors", errors: { dept: "Pick a department first." } });
-    const cart = meta.cart ?? [];
-    if (!cart.length) return jsonResp({ response_action: "errors", errors: { additem: "Add at least one item." } });
-    for (const it of cart) {
-      const q = Number(it.qty);
-      if (!it.qty || !Number.isFinite(q) || q <= 0) return jsonResp({ response_action: "errors", errors: { [`qty_${it.id}`]: "Enter a number greater than 0." } });
+
+    // pull every item that has a positive quantity typed against it
+    const items = await deptItems(meta.department_id);
+    const cart: { id: string; name: string; unit: string; qty: number }[] = [];
+    const errors: Record<string, string> = {};
+    for (const it of items) {
+      const raw = values?.[`qty_${it.id}`]?.v?.value;
+      if (raw === undefined || raw === null || String(raw).trim() === "") continue;
+      const q = Number(raw);
+      if (!Number.isFinite(q) || q <= 0) { errors[`qty_${it.id}`] = "Enter a number greater than 0."; continue; }
+      cart.push({ id: it.id, name: it.name, unit: it.unit, qty: q });
+    }
+    if (Object.keys(errors).length) return jsonResp({ response_action: "errors", errors });
+    if (!cart.length) {
+      const first = items[0];
+      return jsonResp({ response_action: "errors", errors: first ? { [`qty_${first.id}`]: "Enter a quantity for at least one item." } : { dept: "No items to request." } });
     }
     const c = db();
     const { data: order, error } = await c.from("req_orders").insert({
@@ -211,8 +193,8 @@ Deno.serve(async (req) => {
       requester_name: meta.name ?? "", requester_slack_id: meta.slack_id ?? null, source: "slack",
       slack_channel: meta.channel ?? null, slack_thread_ts: meta.thread_ts ?? null,
     }).select("id, number").single();
-    if (error || !order) return jsonResp({ response_action: "errors", errors: { additem: "Could not save — please try again." } });
-    await c.from("req_order_items").insert(cart.map((it) => ({ order_id: order.id, item_id: it.id, item_name: it.name, unit: it.unit || null, quantity: Number(it.qty) })));
+    if (error || !order) return jsonResp({ response_action: "errors", errors: { dept: "Could not save — please try again." } });
+    await c.from("req_order_items").insert(cart.map((it) => ({ order_id: order.id, item_id: it.id, item_name: it.name, unit: it.unit || null, quantity: it.qty })));
     if (meta.channel) {
       const conf = [{ type: "section", text: { type: "mrkdwn", text: `📝 *Request #${order.number}* submitted by *${meta.name}* — waiting for approval.` } }];
       // replace the "Start request" button with the confirmation (removes the button)
