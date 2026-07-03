@@ -54,10 +54,16 @@ async function deptOptions() {
     value: String(d.id),
   }));
 }
-// Every item in a department, alphabetical — one row each in the modal.
+// Every item TAGGED with a department (many-to-many), alphabetical — one row
+// each in the modal. An item tagged to several departments shows in each.
 async function deptItems(deptId: string) {
-  const { data } = await db().from("items").select("id, name, unit").eq("department_id", deptId).order("name");
-  return (data ?? []) as { id: string; name: string; unit: string }[];
+  const { data } = await db().from("items")
+    .select("id, name, unit, item_departments!inner(department_id)")
+    .eq("item_departments.department_id", deptId)
+    .order("name");
+  return (data ?? []).map((i: Record<string, unknown>) => ({
+    id: String(i.id), name: String(i.name), unit: String(i.unit ?? ""),
+  }));
 }
 
 async function buildView(meta: Meta) {
