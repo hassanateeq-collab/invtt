@@ -141,3 +141,13 @@ export interface MovementRow {
   created_at: string;
   items: { name: string; unit: string } | null;
 }
+
+// A single "buy" — an 'in' (received) stock movement, used by the Cost view to
+// tally how much was spent buying each item over a date range.
+export interface BuyRow {
+  id: string;
+  item_id: string;
+  quantity: number;
+  created_at: string;
+  items: { name: string; unit: string; department_id: string | null; unit_cost: number } | null;
+}

@@ -1,6 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
-import type { Area, Department, ItemStock, MovementRow, Note, PortalUser, Property, ReqOrder, RequestRow, Supplier, Unit } from "./types";
+import type { Area, BuyRow, Department, ItemStock, MovementRow, Note, PortalUser, Property, ReqOrder, RequestRow, Supplier, Unit } from "./types";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -83,6 +83,22 @@ export async function fetchRequests(): Promise<RequestRow[]> {
 export async function fetchMyRole(): Promise<string | null> {
   const { data } = await supabase.from("profiles").select("role").limit(1).maybeSingle();
   return (data?.role as string | undefined) ?? null;
+}
+
+// Buys = received ('in') stock for a branch within [fromISO, toISO]. Used by the
+// Cost view to show how much was spent buying each item over a chosen period.
+export async function fetchBuys(propertyId: string, fromISO: string, toISO: string): Promise<BuyRow[]> {
+  const { data, error } = await supabase
+    .from("stock_movements")
+    .select("id, item_id, quantity, created_at, items!inner(name, unit, department_id, unit_cost, property_id)")
+    .eq("items.property_id", propertyId)
+    .eq("type", "in")
+    .gte("created_at", fromISO)
+    .lte("created_at", toISO)
+    .order("created_at", { ascending: false })
+    .limit(5000);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as BuyRow[];
 }
 
 export async function fetchMovements(propertyId: string): Promise<MovementRow[]> {
