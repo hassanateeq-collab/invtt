@@ -39,7 +39,7 @@ export function CostView({ propertyId, branchName, departments, items }: {
   const [cTo, setCTo] = useState("");
   const [buys, setBuys] = useState<BuyRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [openDept, setOpenDept] = useState<string | null>(null);
+  const [selDept, setSelDept] = useState<string | null>(null);
   const [openStock, setOpenStock] = useState<string | null>(null);
 
   const { from, to } = useMemo(() => rangeFor(rangeKey, cFrom, cTo), [rangeKey, cFrom, cTo]);
@@ -130,55 +130,67 @@ export function CostView({ propertyId, branchName, departments, items }: {
         </span>
       </div>
 
-      {/* ---- department rows (scrollable) -------------------------------- */}
-      <div className="mt-3 max-h-[58vh] space-y-2 overflow-y-auto pr-1">
-        {loading ? (
-          <div className="rounded-2xl border border-stone-200 bg-white px-4 py-8 text-center text-sm text-stone-400">Loading…</div>
-        ) : deptSpend.every((d) => d.cost === 0) ? (
-          <div className="rounded-2xl border border-stone-200 bg-white px-4 py-8 text-center text-sm text-stone-400">Nothing bought in this period.</div>
-        ) : deptSpend.filter((d) => d.cost > 0 || d.rows.length > 0).map((g) => {
+      {/* ---- department tiles: name + cost spent in the period ----------- */}
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        {deptSpend.map((g) => {
           const key = g.id ?? "_none";
-          const isOpen = openDept === key;
+          const active = selDept === key;
           return (
-            <div key={key} className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
-              <button onClick={() => setOpenDept(isOpen ? null : key)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-stone-50">
-                <FolderTree size={16} className="text-stone-400" />
-                <span className="flex-1 text-sm font-medium text-stone-800">{g.name}</span>
-                <span className="tnum text-sm font-semibold text-teal-700">{money(g.cost)}</span>
-                <ChevronDown size={16} className={`text-stone-400 transition ${isOpen ? "rotate-180" : ""}`} />
-              </button>
-              {isOpen && (
-                <div className="border-t border-stone-100">
-                  {itemLines(g.rows).length === 0 ? (
-                    <p className="px-4 py-3 text-center text-xs text-stone-400">No purchases for this department in this period.</p>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-[11px] uppercase tracking-wide text-stone-400">
-                          <th className="px-4 py-2 font-medium">Item</th>
-                          <th className="px-3 py-2 text-right font-medium">Bought</th>
-                          <th className="px-4 py-2 text-right font-medium">Total cost</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {itemLines(g.rows).map((l, idx) => (
-                          <tr key={idx} className="border-t border-stone-50">
-                            <td className="px-4 py-2 text-stone-700">{l.name}</td>
-                            <td className="tnum px-3 py-2 text-right text-stone-600">{l.qty} <span className="text-xs text-stone-400">{l.unit}</span></td>
-                            <td className="tnum px-4 py-2 text-right font-medium text-teal-700">{money(l.cost)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              )}
-            </div>
+            <button key={key} onClick={() => setSelDept(active ? null : key)}
+              className={`rounded-2xl border p-3 text-left transition ${active ? "border-teal-600 bg-teal-50 ring-1 ring-teal-600" : "border-stone-200 bg-white hover:border-stone-300 hover:shadow-sm"}`}>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-stone-500">
+                <FolderTree size={13} className="text-stone-400" /> <span className="truncate">{g.name}</span>
+              </div>
+              <div className={`tnum mt-1 text-2xl font-bold ${g.cost > 0 ? "text-teal-700" : "text-stone-300"}`}>{money(g.cost)}</div>
+            </button>
           );
         })}
       </div>
+
+      {/* ---- selected department → its items (scrollable) ---------------- */}
+      {(() => {
+        const g = deptSpend.find((d) => (d.id ?? "_none") === selDept);
+        if (!g) return (
+          <p className="mt-3 rounded-2xl border border-dashed border-stone-200 bg-white px-4 py-6 text-center text-sm text-stone-400">
+            {loading ? "Loading…" : "Tap a department above to see the items bought and their cost."}
+          </p>
+        );
+        const lines = itemLines(g.rows);
+        return (
+          <div className="mt-3 overflow-hidden rounded-2xl border border-stone-200 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-100 px-4 py-2.5">
+              <span className="text-sm font-semibold text-stone-800">{g.name}</span>
+              <span className="tnum text-sm font-semibold text-teal-700">{money(g.cost)}</span>
+            </div>
+            {lines.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-stone-400">Nothing bought for this department in this period.</p>
+            ) : (
+              <div className="max-h-[42vh] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-stone-400">
+                      <th className="px-4 py-2 font-medium">Item</th>
+                      <th className="px-3 py-2 text-right font-medium">Bought</th>
+                      <th className="px-4 py-2 text-right font-medium">Total cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((l, idx) => (
+                      <tr key={idx} className="border-t border-stone-50">
+                        <td className="px-4 py-2 text-stone-700">{l.name}</td>
+                        <td className="tnum px-3 py-2 text-right text-stone-600">{l.qty} <span className="text-xs text-stone-400">{l.unit}</span></td>
+                        <td className="tnum px-4 py-2 text-right font-medium text-teal-700">{money(l.cost)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       <p className="mt-2 px-1 text-xs text-stone-400">
-        “Spent on buying” totals stock received in the period × its unit cost. Set each item’s unit cost via its Edit so these figures are accurate.
+        Each tile is a department; the number is what was spent buying its stock in the chosen period. Tap a tile to see the items. Set each item’s unit cost via its Edit so these figures are accurate.
       </p>
 
       {/* ---- stock on hand & to-buy (existing) --------------------------- */}
