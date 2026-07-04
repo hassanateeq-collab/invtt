@@ -45,6 +45,8 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 type Meta = {
   name?: string; slack_id?: string; channel?: string; button_ts?: string; thread_ts?: string;
   department_id?: string; department_name?: string; property_id?: string | null;
+  query?: string;                     // current item search text
+  qtys?: Record<string, string>;      // typed quantities kept across filtering
 };
 
 async function deptOptions() {
@@ -66,7 +68,21 @@ async function deptItems(deptId: string) {
   }));
 }
 
-async function buildView(meta: Meta) {
+// Merge the quantities currently typed in the view into meta.qtys, so typed
+// values survive a re-render (searching, changing department).
+function mergeQtys(meta: Meta, values: Record<string, Record<string, { value?: string }>>) {
+  const qtys: Record<string, string> = { ...(meta.qtys ?? {}) };
+  for (const [bid, v] of Object.entries(values ?? {})) {
+    if (!bid.startsWith("qty_")) continue;
+    const val = v?.v?.value;
+    if (val !== undefined && val !== null) qtys[bid.slice(4)] = String(val);
+  }
+  meta.qtys = qtys;
+  return qtys;
+}
+
+async function buildView(meta: Meta, values: Record<string, Record<string, { value?: string }>> = {}) {
+  const qtys = mergeQtys(meta, values);
   const opts = await deptOptions();
   const selected = meta.department_id ? opts.find((o) => o.value === meta.department_id) : undefined;
   const blocks: unknown[] = [
@@ -78,19 +94,28 @@ async function buildView(meta: Meta) {
     }] },
   ];
   if (meta.department_id) {
-    const items = await deptItems(meta.department_id);
+    const all = await deptItems(meta.department_id);
+    const q = (meta.query ?? "").trim().toLowerCase();
+    const items = q ? all.filter((it) => it.name.toLowerCase().includes(q)) : all;
     blocks.push({ type: "divider" });
+    // search bar — type an item name and press Enter to filter the list
+    blocks.push({ type: "input", dispatch_action: true, optional: true, block_id: "search",
+      label: { type: "plain_text", text: "🔍 Search items" },
+      element: { type: "plain_text_input", action_id: "search_items",
+        dispatch_action_config: { trigger_actions_on: ["on_enter_pressed"] },
+        placeholder: { type: "plain_text", text: "type a name, then press Enter" },
+        ...(meta.query ? { initial_value: meta.query } : {}) } });
     if (!items.length) {
-      blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "No items in this department yet." }] });
+      blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: q ? `No items match “${meta.query}”.` : "No items in this department yet." }] });
     } else {
       blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "Type a quantity next to the items you need, then tap *Request*." }] });
-      // one quantity field per item (alphabetical) — no dropdown to open
       for (const it of items.slice(0, 90)) {
         blocks.push({ type: "input", optional: true, block_id: `qty_${it.id}`,
           label: { type: "plain_text", text: `${it.name}${it.unit ? ` (${it.unit})` : ""}`.slice(0, 150) },
-          element: { type: "plain_text_input", action_id: "v", placeholder: { type: "plain_text", text: "qty" } } });
+          element: { type: "plain_text_input", action_id: "v", placeholder: { type: "plain_text", text: "qty" },
+            ...(qtys[it.id] ? { initial_value: String(qtys[it.id]) } : {}) } });
       }
-      if (items.length > 90) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: `Showing the first 90 of ${items.length} items.` }] });
+      if (items.length > 90) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: `Showing the first 90 of ${items.length} matches.` }] });
     }
   } else {
     blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "Pick a department to see its items." }] });
@@ -159,7 +184,13 @@ Deno.serve(async (req) => {
       const deptId = action.selected_option?.value;
       const { data: dept } = await db().from("departments").select("id, name, property_id").eq("id", deptId).maybeSingle();
       meta.department_id = deptId; meta.department_name = dept?.name ?? ""; meta.property_id = dept?.property_id ?? null;
-      await slack("views.update", BOT(), { view_id: payload.view.id, hash: payload.view.hash, view: await buildView(meta) });
+      meta.query = ""; meta.qtys = {}; // fresh list for the new department
+      await slack("views.update", BOT(), { view_id: payload.view.id, hash: payload.view.hash, view: await buildView(meta, {}) });
+      return ok();
+    }
+    if (action.action_id === "search_items") {
+      meta.query = action.value ?? "";
+      await slack("views.update", BOT(), { view_id: payload.view.id, hash: payload.view.hash, view: await buildView(meta, payload.view?.state?.values ?? {}) });
       return ok();
     }
     if (action.action_id === "collect_order") {
@@ -177,21 +208,24 @@ Deno.serve(async (req) => {
     const values = payload.view.state?.values ?? {};
     if (!meta.department_id) return jsonResp({ response_action: "errors", errors: { dept: "Pick a department first." } });
 
-    // pull every item that has a positive quantity typed against it
+    // include quantities typed on hidden (searched-away) rows too
+    const qtys = mergeQtys(meta, values);
     const items = await deptItems(meta.department_id);
+    const q = (meta.query ?? "").trim().toLowerCase();
+    const visible = new Set((q ? items.filter((it) => it.name.toLowerCase().includes(q)) : items).slice(0, 90).map((it) => it.id));
     const cart: { id: string; name: string; unit: string; qty: number }[] = [];
     const errors: Record<string, string> = {};
     for (const it of items) {
-      const raw = values?.[`qty_${it.id}`]?.v?.value;
+      const raw = qtys[it.id];
       if (raw === undefined || raw === null || String(raw).trim() === "") continue;
-      const q = Number(raw);
-      if (!Number.isFinite(q) || q <= 0) { errors[`qty_${it.id}`] = "Enter a number greater than 0."; continue; }
-      cart.push({ id: it.id, name: it.name, unit: it.unit, qty: q });
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n <= 0) { if (visible.has(it.id)) errors[`qty_${it.id}`] = "Enter a number greater than 0."; continue; }
+      cart.push({ id: it.id, name: it.name, unit: it.unit, qty: n });
     }
     if (Object.keys(errors).length) return jsonResp({ response_action: "errors", errors });
     if (!cart.length) {
-      const first = items[0];
-      return jsonResp({ response_action: "errors", errors: first ? { [`qty_${first.id}`]: "Enter a quantity for at least one item." } : { dept: "No items to request." } });
+      const first = items.find((it) => visible.has(it.id));
+      return jsonResp({ response_action: "errors", errors: first ? { [`qty_${first.id}`]: "Enter a quantity for at least one item." } : { search: "Type an item and a quantity." } });
     }
     const c = db();
     const { data: order, error } = await c.from("req_orders").insert({
