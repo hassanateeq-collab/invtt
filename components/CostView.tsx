@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Wallet, ChevronDown, FolderTree, CalendarDays, Loader2, FileDown, Download, X } from "lucide-react";
+import { Wallet, ChevronDown, FolderTree, CalendarDays, Loader2, FileDown, Download, X, TrendingDown } from "lucide-react";
 import jsPDF from "jspdf";
 import type { Department, ItemStock, BuyRow } from "@/lib/types";
 import { fetchBuys } from "@/lib/api";
@@ -42,6 +42,7 @@ export function CostView({ propertyId, branchName, departments, items }: {
   const [loading, setLoading] = useState(false);
   const [selDept, setSelDept] = useState<string | null>(null);
   const [openStock, setOpenStock] = useState<string | null>(null);
+  const [openHist, setOpenHist] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
 
   const { from, to } = useMemo(() => rangeFor(rangeKey, cFrom, cTo), [rangeKey, cFrom, cTo]);
@@ -71,6 +72,19 @@ export function CostView({ propertyId, branchName, departments, items }: {
   }, [departments, buys]);
 
   const totalSpent = useMemo(() => buys.reduce((s, b) => s + buyCost(b), 0), [buys]);
+
+  // Per-item cost history in the period: priced receives → chart of price changes.
+  const costHistory = useMemo(() => {
+    const map = new Map<string, { name: string; unit: string; standard: number; points: { date: string; price: number; qty: number }[] }>();
+    for (const b of buys) {
+      if (b.unit_price == null) continue;
+      const g = map.get(b.item_id) ?? { name: b.items?.name ?? "item", unit: b.items?.unit ?? "", standard: b.items?.unit_cost ?? 0, points: [] };
+      g.points.push({ date: b.created_at, price: b.unit_price, qty: b.quantity });
+      map.set(b.item_id, g);
+    }
+    for (const g of map.values()) g.points.sort((a, b) => +new Date(a.date) - +new Date(b.date));
+    return [...map.entries()].map(([id, g]) => ({ id, ...g })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [buys]);
 
   // Per-item roll-up within a department group (qty bought + total cost).
   function itemLines(rows: BuyRow[]) {
@@ -300,6 +314,64 @@ export function CostView({ propertyId, branchName, departments, items }: {
         </div>
       )}
 
+      {/* ---- cost changes & discounts (per-item price history) ------------ */}
+      <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 pt-4">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-stone-700"><TrendingDown size={16} className="text-teal-700" /> Cost changes &amp; discounts</h3>
+        <span className="text-xs text-stone-400">{fmtDay(from)} — {fmtDay(to)}</span>
+      </div>
+      {costHistory.length === 0 ? (
+        <div className="rounded-2xl border border-stone-200 bg-white px-4 py-6 text-center text-sm text-stone-400">
+          No priced receives in this period. Enter the price paid when you Receive stock to track cost changes here.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {costHistory.map((h) => {
+            const isOpen = openHist === h.id;
+            const last = h.points[h.points.length - 1];
+            const off = h.standard > 0 && last.price < h.standard ? Math.round((1 - last.price / h.standard) * 100) : 0;
+            return (
+              <div key={h.id} className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                <button onClick={() => setOpenHist(isOpen ? null : h.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-stone-50">
+                  <span className="flex-1 text-sm font-medium text-stone-800">{h.name}</span>
+                  {off > 0 && <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">−{off}%</span>}
+                  <span className="tnum text-sm font-semibold text-teal-700">{money(last.price)}<span className="text-[11px] font-normal text-stone-400">/{h.unit}</span></span>
+                  <ChevronDown size={16} className={`text-stone-400 transition ${isOpen ? "rotate-180" : ""}`} />
+                </button>
+                {isOpen && (
+                  <div className="border-t border-stone-100 px-4 py-3">
+                    {h.standard > 0 && <p className="mb-2 text-xs text-stone-500">Standard price <b className="text-stone-700">{money(h.standard)}</b> /{h.unit} <span className="text-stone-300">·</span> dashed line below</p>}
+                    <PriceChart points={h.points} standard={h.standard} />
+                    <table className="mt-3 w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-[11px] uppercase tracking-wide text-stone-400">
+                          <th className="py-1 font-medium">Date</th>
+                          <th className="py-1 text-right font-medium">Qty</th>
+                          <th className="py-1 text-right font-medium">Price</th>
+                          <th className="py-1 text-right font-medium">vs standard</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...h.points].reverse().map((p, idx) => {
+                          const d = h.standard > 0 ? Math.round((1 - p.price / h.standard) * 100) : 0;
+                          return (
+                            <tr key={idx} className="border-t border-stone-50">
+                              <td className="py-1.5 text-stone-600">{fmtDay(new Date(p.date))}</td>
+                              <td className="tnum py-1.5 text-right text-stone-600">{p.qty} {h.unit}</td>
+                              <td className="tnum py-1.5 text-right font-medium text-stone-800">{money(p.price)}</td>
+                              <td className={`tnum py-1.5 text-right font-medium ${d > 0 ? "text-emerald-600" : d < 0 ? "text-amber-600" : "text-stone-400"}`}>{d > 0 ? `−${d}%` : d < 0 ? `+${-d}%` : "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {preview && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center bg-stone-900/60 p-3 sm:p-6" onClick={closePreview}>
           <div className="flex h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -318,5 +390,29 @@ export function CostView({ propertyId, branchName, departments, items }: {
         </div>
       )}
     </div>
+  );
+}
+
+// Simple SVG line chart of an item's price over its priced receives, with a
+// dashed line at the standard price.
+function PriceChart({ points, standard }: { points: { date: string; price: number }[]; standard: number }) {
+  if (!points.length) return null;
+  const W = 300, H = 90, pad = 8;
+  const prices = points.map((p) => p.price);
+  const lo = Math.min(...prices, standard > 0 ? standard : Infinity);
+  const hi = Math.max(...prices, standard > 0 ? standard : 0);
+  const range = hi - lo || 1;
+  const n = points.length;
+  const x = (i: number) => (n === 1 ? W / 2 : pad + (i / (n - 1)) * (W - 2 * pad));
+  const y = (v: number) => H - pad - ((v - lo) / range) * (H - 2 * pad);
+  const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.price).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="price history">
+      {standard > 0 && standard >= lo && standard <= hi && (
+        <line x1={0} x2={W} y1={y(standard)} y2={y(standard)} stroke="#d6d3d1" strokeDasharray="4 3" strokeWidth={1} />
+      )}
+      {n > 1 && <path d={path} fill="none" stroke="#0f766e" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
+      {points.map((p, i) => <circle key={i} cx={x(i)} cy={y(p.price)} r={3} fill="#0f766e" />)}
+    </svg>
   );
 }

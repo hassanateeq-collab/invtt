@@ -61,6 +61,7 @@ export function ActionModal({
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState("");
   const [deptId, setDeptId] = useState("");
+  const [price, setPrice] = useState("");
   const [expiry, setExpiry] = useState("");
   const [dir, setDir] = useState<"increase" | "reduce">("reduce");
   const [busy, setBusy] = useState(false);
@@ -77,7 +78,8 @@ export function ActionModal({
     setBusy(true);
     try {
       if (kind === "receive") {
-        await receiveStock(item.id, n, reason.trim() || "Delivery", item.type === "fresh" ? expiry : undefined);
+        const up = price.trim() === "" ? undefined : Math.max(0, Number(price) || 0);
+        await receiveStock(item.id, n, reason.trim() || "Delivery", item.type === "fresh" ? expiry : undefined, up);
         onDone(`Received ${n} ${item.unit} of ${item.name}`);
       } else if (kind === "issue") {
         const deptName = departments.find((d) => d.id === deptId)?.name;
@@ -144,6 +146,27 @@ export function ActionModal({
         <input className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)}
                placeholder={kind === "receive" ? "e.g. Green Valley delivery" : kind === "issue" ? "e.g. for morning shift" : "e.g. Breakage"} />
       </div>
+
+      {kind === "receive" && (() => {
+        const std = item.unit_cost || 0;
+        const paid = Number(price);
+        const hasPaid = price.trim() !== "" && Number.isFinite(paid) && paid >= 0;
+        const off = std > 0 && hasPaid && paid < std ? Math.round((1 - paid / std) * 100) : 0;
+        return (
+          <div className="mt-3">
+            <label className={labelCls}>Price paid per {item.unit} <span className="font-normal text-stone-400">(optional — enter if discounted)</span></label>
+            <input className={inputCls} type="number" min="0" step="any" inputMode="decimal"
+              value={price} onChange={(e) => setPrice(e.target.value)} placeholder={std > 0 ? `standard ${std}` : "e.g. 90"} />
+            {hasPaid && std > 0 && (
+              off > 0
+                ? <p className="mt-1 text-xs font-medium text-emerald-600">{off}% off — standard is {std}, you paid {paid} per {item.unit}.</p>
+                : paid > std
+                  ? <p className="mt-1 text-xs text-amber-600">Above the standard price of {std}.</p>
+                  : <p className="mt-1 text-xs text-stone-400">Same as the standard price.</p>
+            )}
+          </div>
+        );
+      })()}
 
       {kind === "receive" && item.type === "fresh" && (
         <div className="mt-3">

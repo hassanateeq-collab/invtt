@@ -34,6 +34,9 @@ Deno.serve(async (req) => {
   const quantity = Number(body.quantity);
   const reason = body.reason ? String(body.reason) : null;
   const expiry = body.expiry ? String(body.expiry) : null;
+  // price actually paid per unit this delivery (e.g. a discounted price)
+  const up = Number(body.unit_price);
+  const unit_price = Number.isFinite(up) && up >= 0 ? up : null;
 
   if (!item_id) return bad("item_id is required");
   if (!Number.isFinite(quantity) || quantity <= 0) return bad("quantity must be a positive number");
@@ -43,7 +46,7 @@ Deno.serve(async (req) => {
   if (itemErr || !item) return bad("Item not found", 404);
 
   const { error } = await c.from("stock_movements").insert({
-    item_id, type: "in", quantity, reason,
+    item_id, type: "in", quantity, reason, unit_price,
     expiry_date: item.type === "fresh" ? expiry : null, // expiry only for fresh
   });
   if (error) return bad(error.message, 500);

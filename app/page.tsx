@@ -709,6 +709,11 @@ export default function Page() {
                           {(i.department_ids ?? []).filter((d) => deptName.has(d)).map((d) => (
                             <span key={d} className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${deptColor(d)}`}>{deptName.get(d)}</span>
                           ))}
+                          {i.unit_cost > 0 && i.last_buy_price != null && i.last_buy_price < i.unit_cost && (
+                            <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                              −{Math.round((1 - i.last_buy_price / i.unit_cost) * 100)}%
+                            </span>
+                          )}
                           {exp && <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${exp.cls}`}>{exp.label}</span>}
                         </div>
                         <p className="mt-0.5 text-xs text-stone-400">par {i.par_level} · reorder at {i.reorder_point}</p>

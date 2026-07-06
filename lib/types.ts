@@ -56,6 +56,7 @@ export interface ItemStock {
   reorder_point: number;
   delivery_override: DeliveryMode | null;
   unit_cost: number;
+  last_buy_price: number | null; // most recent priced receive (for discount tag)
   created_at: string;
   current_stock: number;
   status: StockStatus;
@@ -149,6 +150,7 @@ export interface BuyRow {
   id: string;
   item_id: string;
   quantity: number;
+  unit_price: number | null; // price paid per unit this receive (may be a discount)
   created_at: string;
   items: { name: string; unit: string; department_id: string | null; unit_cost: number } | null;
 }
