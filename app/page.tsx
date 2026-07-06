@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   History, Search, PackageCheck, TriangleAlert, PackageX, Inbox, MessageSquare,
-  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck, Building2, ClipboardList, Trash2, AlertTriangle, NotebookPen, Wallet, Tag,
+  Boxes, Truck, ArrowLeftRight, Send, Pencil, PackagePlus, FolderTree, LogOut, MapPin, ShieldCheck, Building2, ClipboardList, Trash2, AlertTriangle, NotebookPen, Wallet,
 } from "lucide-react";
 import type { Area, Department, ItemStock, MovementRow, Note, Property, ReqOrder, RequestRow, StockStatus, Supplier, Unit } from "@/lib/types";
 import {
@@ -30,7 +30,6 @@ import { RequestsView } from "@/components/RequestsView";
 import { NotesView } from "@/components/NotesView";
 import { CostView } from "@/components/CostView";
 import { DeptTakenView } from "@/components/DeptTakenView";
-import { DiscountView } from "@/components/DiscountView";
 import { NotificationToasts, type Toast } from "@/components/NotificationToasts";
 import { OrderDetailModal } from "@/components/OrderDetailModal";
 
@@ -64,7 +63,7 @@ export default function Page() {
   const bellVolRef = useRef(0.22);
   const [pushStatus, setPushStatus] = useState<"idle" | "granted" | "denied" | "unsupported" | "error">("idle");
 
-  const [view, setView] = useState<"inventory" | "suppliers" | "areas" | "requests" | "notes" | "cost" | "discount">("inventory");
+  const [view, setView] = useState<"inventory" | "suppliers" | "areas" | "requests" | "notes" | "cost">("inventory");
   const [areaFilter, setAreaFilter] = useState<string>("all"); // "all" | area id | "none"
   const [attention, setAttention] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StockStatus | null>(null);
@@ -549,10 +548,6 @@ export default function Page() {
             className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "cost" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
             <Wallet size={15} /> Cost
           </button>
-          <button onClick={() => setView("discount")}
-            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "discount" ? "bg-white text-teal-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>
-            <Tag size={15} /> Discount
-          </button>
         </div>
 
         {error && (
@@ -570,8 +565,6 @@ export default function Page() {
         ) : view === "cost" ? (
           <CostView propertyId={propId} branchName={branch ? `${branch.code} · ${branch.name}` : ""}
             departments={branchDepts} items={allItems} />
-        ) : view === "discount" ? (
-          <DiscountView propertyId={propId} branchName={branch ? `${branch.code} · ${branch.name}` : ""} />
         ) : view === "suppliers" ? (
           <SuppliersView suppliers={suppliers} items={allItems} properties={properties}
             onChanged={async (msg) => { flash(msg); try { setSuppliers(await fetchSuppliers()); } catch {} }} />

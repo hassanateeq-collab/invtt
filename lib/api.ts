@@ -90,7 +90,7 @@ export async function fetchMyRole(): Promise<string | null> {
 export async function fetchBuys(propertyId: string, fromISO: string, toISO: string): Promise<BuyRow[]> {
   const { data, error } = await supabase
     .from("stock_movements")
-    .select("id, item_id, quantity, unit_price, created_at, items!inner(name, unit, department_id, unit_cost, property_id)")
+    .select("id, item_id, quantity, unit_price, price_kind, created_at, items!inner(name, unit, department_id, unit_cost, property_id)")
     .eq("items.property_id", propertyId)
     .eq("type", "in")
     .gte("created_at", fromISO)
@@ -145,8 +145,8 @@ async function callFn(name: string, body: Record<string, unknown>) {
   return json;
 }
 
-export const receiveStock = (item_id: string, quantity: number, reason: string, expiry?: string, unit_price?: number) =>
-  callFn("receive-stock", { item_id, quantity, reason, expiry: expiry || undefined, unit_price });
+export const receiveStock = (item_id: string, quantity: number, reason: string, expiry?: string, unit_price?: number, price_kind?: "discount" | "new_cost") =>
+  callFn("receive-stock", { item_id, quantity, reason, expiry: expiry || undefined, unit_price, price_kind });
 
 export const issueStock = (item_id: string, quantity: number, reason: string) =>
   callFn("issue-stock", { item_id, quantity, reason });

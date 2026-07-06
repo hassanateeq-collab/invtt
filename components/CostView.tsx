@@ -4,6 +4,7 @@ import { Wallet, ChevronDown, FolderTree, CalendarDays, Loader2, FileDown, Downl
 import jsPDF from "jspdf";
 import type { Department, ItemStock, BuyRow } from "@/lib/types";
 import { fetchBuys } from "@/lib/api";
+import { DiscountView } from "@/components/DiscountView";
 
 const money = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 
@@ -299,6 +300,10 @@ export function CostView({ propertyId, branchName, departments, items }: {
           })}
         </div>
       )}
+
+      {/* ---- discount / cost-history report (with its own date filter) ---- */}
+      <div className="mt-6 border-t border-stone-200 pt-1" />
+      <DiscountView propertyId={propertyId} branchName={branchName} />
 
       {preview && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center bg-stone-900/60 p-3 sm:p-6" onClick={closePreview}>

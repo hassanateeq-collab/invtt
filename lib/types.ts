@@ -151,6 +151,7 @@ export interface BuyRow {
   item_id: string;
   quantity: number;
   unit_price: number | null; // price paid per unit this receive (may be a discount)
+  price_kind: string | null; // 'discount' | 'new_cost' | null
   created_at: string;
   items: { name: string; unit: string; department_id: string | null; unit_cost: number } | null;
 }

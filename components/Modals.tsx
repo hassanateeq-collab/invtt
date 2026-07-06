@@ -62,6 +62,7 @@ export function ActionModal({
   const [reason, setReason] = useState("");
   const [deptId, setDeptId] = useState("");
   const [price, setPrice] = useState("");
+  const [priceMode, setPriceMode] = useState<"" | "discount" | "new_cost">("");
   const [expiry, setExpiry] = useState("");
   const [dir, setDir] = useState<"increase" | "reduce">("reduce");
   const [busy, setBusy] = useState(false);
@@ -78,8 +79,9 @@ export function ActionModal({
     setBusy(true);
     try {
       if (kind === "receive") {
-        const up = price.trim() === "" ? undefined : Math.max(0, Number(price) || 0);
-        await receiveStock(item.id, n, reason.trim() || "Delivery", item.type === "fresh" ? expiry : undefined, up);
+        const up = priceMode !== "" && price.trim() !== "" ? Math.max(0, Number(price) || 0) : undefined;
+        const pk = up != null && priceMode !== "" ? priceMode : undefined;
+        await receiveStock(item.id, n, reason.trim() || "Delivery", item.type === "fresh" ? expiry : undefined, up, pk);
         onDone(`Received ${n} ${item.unit} of ${item.name}`);
       } else if (kind === "issue") {
         const deptName = departments.find((d) => d.id === deptId)?.name;
@@ -149,20 +151,40 @@ export function ActionModal({
 
       {kind === "receive" && (() => {
         const std = item.unit_cost || 0;
+        const recent = item.last_buy_price ?? std;                 // last price you actually paid
         const paid = Number(price);
-        const hasPaid = price.trim() !== "" && Number.isFinite(paid) && paid >= 0;
+        const hasPaid = priceMode !== "" && price.trim() !== "" && Number.isFinite(paid) && paid >= 0;
         const off = std > 0 && hasPaid && paid < std ? Math.round((1 - paid / std) * 100) : 0;
+        const toggle = (m: "discount" | "new_cost") => setPriceMode((cur) => (cur === m ? "" : m));
         return (
           <div className="mt-3">
-            <label className={labelCls}>Price paid per {item.unit} <span className="font-normal text-stone-400">(optional — enter if discounted)</span></label>
-            <input className={inputCls} type="number" min="0" step="any" inputMode="decimal"
-              value={price} onChange={(e) => setPrice(e.target.value)} placeholder={std > 0 ? `standard ${std}` : "e.g. 90"} />
-            {hasPaid && std > 0 && (
-              off > 0
-                ? <p className="mt-1 text-xs font-medium text-emerald-600">{off}% off — standard is {std}, you paid {paid} per {item.unit}.</p>
-                : paid > std
-                  ? <p className="mt-1 text-xs text-amber-600">Above the standard price of {std}.</p>
-                  : <p className="mt-1 text-xs text-stone-400">Same as the standard price.</p>
+            <div className="mb-2 rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-600">
+              Recent price paid: <b className="text-stone-800">{recent || "—"}</b> / {item.unit}
+              {std > 0 && <> · standard <b className="text-stone-800">{std}</b></>}. Same price this time? Leave both unticked.
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center gap-2 text-sm text-stone-700">
+                <input type="checkbox" className="h-4 w-4 accent-teal-700" checked={priceMode === "discount"} onChange={() => toggle("discount")} />
+                Received on <b>discount</b> (a deal below standard)
+              </label>
+              <label className="flex items-center gap-2 text-sm text-stone-700">
+                <input type="checkbox" className="h-4 w-4 accent-teal-700" checked={priceMode === "new_cost"} onChange={() => toggle("new_cost")} />
+                <b>New cost</b> — the price has changed
+              </label>
+            </div>
+            {priceMode !== "" && (
+              <div className="mt-2">
+                <label className={labelCls}>{priceMode === "discount" ? "Discounted" : "New"} price per {item.unit}</label>
+                <input className={inputCls} type="number" min="0" step="any" inputMode="decimal" autoFocus
+                  value={price} onChange={(e) => setPrice(e.target.value)} placeholder={recent ? `was ${recent}` : "e.g. 90"} />
+                {hasPaid && (
+                  priceMode === "discount"
+                    ? (off > 0
+                        ? <p className="mt-1 text-xs font-medium text-emerald-600">{off}% off — standard is {std}, you paid {paid} per {item.unit}.</p>
+                        : <p className="mt-1 text-xs text-amber-600">That isn’t below the standard price of {std}.</p>)
+                    : <p className="mt-1 text-xs text-stone-500">Was {recent} → now <b>{paid}</b> per {item.unit}. Your standard price ({std}) stays unchanged.</p>
+                )}
+              </div>
             )}
           </div>
         );

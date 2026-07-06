@@ -51,11 +51,11 @@ export function DiscountView({ propertyId, branchName }: { propertyId: string; b
 
   // per-item priced receives → price history + discount vs standard
   const history = useMemo(() => {
-    const map = new Map<string, { name: string; unit: string; standard: number; points: { date: string; price: number; qty: number }[] }>();
+    const map = new Map<string, { name: string; unit: string; standard: number; points: { date: string; price: number; qty: number; kind: string | null }[] }>();
     for (const b of buys) {
       if (b.unit_price == null) continue;
       const g = map.get(b.item_id) ?? { name: b.items?.name ?? "item", unit: b.items?.unit ?? "", standard: b.items?.unit_cost ?? 0, points: [] };
-      g.points.push({ date: b.created_at, price: b.unit_price, qty: b.quantity });
+      g.points.push({ date: b.created_at, price: b.unit_price, qty: b.quantity, kind: b.price_kind });
       map.set(b.item_id, g);
     }
     for (const g of map.values()) g.points.sort((a, b) => +new Date(a.date) - +new Date(b.date));
@@ -130,6 +130,7 @@ export function DiscountView({ propertyId, branchName }: { propertyId: string; b
                     <thead>
                       <tr className="text-left text-[11px] uppercase tracking-wide text-stone-400">
                         <th className="py-1 font-medium">Date</th>
+                        <th className="py-1 font-medium">Type</th>
                         <th className="py-1 text-right font-medium">Qty</th>
                         <th className="py-1 text-right font-medium">Price</th>
                         <th className="py-1 text-right font-medium">vs standard</th>
@@ -141,6 +142,11 @@ export function DiscountView({ propertyId, branchName }: { propertyId: string; b
                         return (
                           <tr key={idx} className="border-t border-stone-50">
                             <td className="py-1.5 text-stone-600">{fmtDay(new Date(p.date))}</td>
+                            <td className="py-1.5">
+                              {p.kind === "discount" ? <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">discount</span>
+                                : p.kind === "new_cost" ? <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">new cost</span>
+                                : <span className="text-[11px] text-stone-300">—</span>}
+                            </td>
                             <td className="tnum py-1.5 text-right text-stone-600">{p.qty} {h.unit}</td>
                             <td className="tnum py-1.5 text-right font-medium text-stone-800">{money(p.price)}</td>
                             <td className={`tnum py-1.5 text-right font-medium ${d > 0 ? "text-emerald-600" : d < 0 ? "text-amber-600" : "text-stone-400"}`}>{d > 0 ? `−${d}%` : d < 0 ? `+${-d}%` : "—"}</td>

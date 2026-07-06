@@ -37,6 +37,10 @@ Deno.serve(async (req) => {
   // price actually paid per unit this delivery (e.g. a discounted price)
   const up = Number(body.unit_price);
   const unit_price = Number.isFinite(up) && up >= 0 ? up : null;
+  // was it a discount deal or a genuine new cost? (info only — never overwrites
+  // the item's standard unit_cost)
+  const price_kind = unit_price != null && (body.price_kind === "discount" || body.price_kind === "new_cost")
+    ? body.price_kind : null;
 
   if (!item_id) return bad("item_id is required");
   if (!Number.isFinite(quantity) || quantity <= 0) return bad("quantity must be a positive number");
@@ -46,7 +50,7 @@ Deno.serve(async (req) => {
   if (itemErr || !item) return bad("Item not found", 404);
 
   const { error } = await c.from("stock_movements").insert({
-    item_id, type: "in", quantity, reason, unit_price,
+    item_id, type: "in", quantity, reason, unit_price, price_kind,
     expiry_date: item.type === "fresh" ? expiry : null, // expiry only for fresh
   });
   if (error) return bad(error.message, 500);
