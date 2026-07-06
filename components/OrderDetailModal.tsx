@@ -247,9 +247,9 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                       ))}
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => act(() => acceptOrder(order.id, (order.req_order_items ?? []).map((l) => ({ id: l.id, quantity: Math.max(0, Number(issueQ[l.id] ?? l.quantity) || 0) }))), `Accepted #${order.number}`)} disabled={busy}
+                      <button onClick={() => act(() => acceptOrder(order.id, (order.req_order_items ?? []).map((l) => ({ id: l.id, quantity: Math.max(0, Number(issueQ[l.id] ?? l.quantity) || 0) }))), `Issued #${order.number} — Collect sent`)} disabled={busy}
                         className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50">
-                        <Check size={15} /> Accept
+                        <Check size={15} /> Issue
                       </button>
                       <button onClick={() => setRejecting(true)} disabled={busy}
                         className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">

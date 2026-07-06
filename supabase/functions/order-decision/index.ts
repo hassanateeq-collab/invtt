@@ -72,14 +72,31 @@ Deno.serve(async (req) => {
     }
     await c.from("req_orders").update({ status: "accepted", decided_at: new Date().toISOString(), decided_by: _uid }).eq("id", order_id);
     if (order.slack_channel && order.slack_thread_ts) {
+      // Build an itemised "bill" showing the quantities the keeper approved
+      // (and what was asked, if different) + line/total cost where prices exist.
+      const { data: bill } = await c.from("req_order_items").select("item_name, unit, quantity, issued_quantity, item_id").eq("order_id", order_id);
+      const ids = (bill ?? []).map((l) => l.item_id).filter(Boolean);
+      const { data: prices } = ids.length ? await c.from("items").select("id, unit_cost").in("id", ids) : { data: [] };
+      const priceMap = new Map((prices ?? []).map((p) => [p.id, Number(p.unit_cost) || 0]));
+      let total = 0;
+      const rows = (bill ?? []).map((l) => {
+        const iq = l.issued_quantity ?? l.quantity;
+        const cost = iq * (l.item_id ? (priceMap.get(l.item_id) ?? 0) : 0);
+        total += cost;
+        const asked = l.quantity !== iq ? ` _(asked ${l.quantity})_` : "";
+        const price = cost > 0 ? `  —  ${cost.toLocaleString()}` : "";
+        return `• *${l.item_name}* — ${iq} ${l.unit ?? ""}${asked}${price}`;
+      }).join("\n");
+      const blocks: unknown[] = [
+        { type: "section", text: { type: "mrkdwn", text: `✅ *Request #${order.number} approved* — issuing:` } },
+        { type: "section", text: { type: "mrkdwn", text: rows || "—" } },
+      ];
+      if (total > 0) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: `*Total:* ${total.toLocaleString()}` }] });
+      blocks.push({ type: "actions", elements: [{ type: "button", style: "primary",
+        text: { type: "plain_text", text: "Collect" }, action_id: "collect_order", value: order_id }] });
       const r = await slack("chat.postMessage", {
         channel: order.slack_channel, thread_ts: order.slack_thread_ts,
-        text: `Request #${order.number} approved`,
-        blocks: [
-          { type: "section", text: { type: "mrkdwn", text: `✅ *Request #${order.number}* approved. Tap *Collect* once you’ve picked it up.` } },
-          { type: "actions", elements: [{ type: "button", style: "primary",
-            text: { type: "plain_text", text: "Collect" }, action_id: "collect_order", value: order_id }] },
-        ],
+        text: `Request #${order.number} approved — tap Collect`, blocks,
       });
       // remember the Collect-button message so we can remove it if the keeper
       // collects from the portal instead

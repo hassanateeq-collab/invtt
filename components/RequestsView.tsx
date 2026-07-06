@@ -175,7 +175,7 @@ export function RequestsView({ orders, onChanged, onOpen }: {
                         <>
                           <button onClick={() => onOpen(o)} disabled={busy}
                             className="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50">
-                            <Check size={13} /> Accept
+                            <Check size={13} /> Accept &amp; issue
                           </button>
                           <button onClick={() => { setRejectingId(o.id); setReason(""); }} disabled={busy}
                             className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
