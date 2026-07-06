@@ -213,38 +213,49 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                     className="w-28 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-teal-600" />
                 </div>
 
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => act(() => resolveQuickReq({
-                      order_id: order.id, action: "issue", property_id: branchId,
-                      department_id: deptId === "__others__" ? null : (deptId || null),
-                      use_others: deptId === "__others__",
-                      issue_qty: Math.max(0, Number(rIssue) || 0),
-                      ...(addNew ? {
-                        new_item: { name: nName.trim(), unit: nUnit, type: nType, unit_cost: Math.max(0, Number(nCost) || 0) },
-                        stock_qty: Math.max(0, Number(nStock) || 0),
-                      } : { item_id: chosenItem }),
-                    }), `Issued #${order.number} — Collect sent`)}
-                    disabled={busy || (!addNew && !chosenItem) || (addNew && (!nName.trim() || !deptId))}
-                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                    <PackageCheck size={15} /> Add &amp; issue
-                  </button>
-                </div>
+                {!rejecting && (
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => act(() => resolveQuickReq({
+                        order_id: order.id, action: "issue", property_id: branchId,
+                        department_id: deptId === "__others__" ? null : (deptId || null),
+                        use_others: deptId === "__others__",
+                        issue_qty: Math.max(0, Number(rIssue) || 0),
+                        ...(addNew ? {
+                          new_item: { name: nName.trim(), unit: nUnit, type: nType, unit_cost: Math.max(0, Number(nCost) || 0) },
+                          stock_qty: Math.max(0, Number(nStock) || 0),
+                        } : { item_id: chosenItem }),
+                      }), `Issued #${order.number} — Collect sent`)}
+                      disabled={busy || (!addNew && !chosenItem) || (addNew && (!nName.trim() || !deptId))}
+                      className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                      <PackageCheck size={15} /> Add &amp; issue
+                    </button>
+                    <button onClick={() => setRejecting(true)} disabled={busy}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
+                      <X size={15} /> Reject
+                    </button>
+                  </div>
+                )}
               </>
             )}
 
             <div className="mt-2">
               {rejecting ? (
                 <div className="flex items-center gap-2">
-                  <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required)"
+                  <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && reason.trim() && act(() => resolveQuickReq({ order_id: order.id, action: "reject", reason: reason.trim() }), `Rejected #${order.number}`)}
+                    placeholder="Reason for rejecting (required)"
                     className="flex-1 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-red-500" />
                   <button onClick={() => act(() => resolveQuickReq({ order_id: order.id, action: "reject", reason: reason.trim() }), `Rejected #${order.number}`)} disabled={busy || !reason.trim()}
-                    className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">Reject</button>
+                    className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">Confirm</button>
                   <button onClick={() => setRejecting(false)} className="rounded-lg px-2 py-1.5 text-sm text-stone-500 hover:bg-stone-100">Cancel</button>
                 </div>
-              ) : (
-                <button onClick={() => setRejecting(true)} className="text-xs font-medium text-red-600 hover:underline">Reject this request</button>
-              )}
+              ) : !branchId ? (
+                <button onClick={() => setRejecting(true)} disabled={busy}
+                  className="inline-flex w-full items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
+                  <X size={15} /> Reject this request
+                </button>
+              ) : null}
             </div>
           </div>
         ) : (
