@@ -128,21 +128,40 @@ Deno.serve(async (req) => {
     return bad("Pick an item or add a new one.");
   }
 
-  // Link the now-resolved item to the order and mark it APPROVED — we do NOT
-  // subtract stock here. Stock only leaves when the request is actually
-  // collected (via the Slack Collect button or the portal's "Mark collected").
-  await c.from("req_order_items").update({ item_id, item_name, unit }).eq("order_id", order_id);
+  // How much stock to add now (received) and how much to issue to the requester.
+  const stockQty = Math.max(0, Number(body.stock_qty) || 0);
+  const iq = Number(body.issue_qty);
+  const issued_quantity = Number.isFinite(iq) && iq >= 0 ? iq : qty; // default = requested
+
+  // the item's unit cost (for the receive price + the Slack bill total)
+  const { data: itFull } = await c.from("items").select("unit_cost").eq("id", item_id).maybeSingle();
+  const uc = Number(itFull?.unit_cost) || 0;
+
+  // Optionally add stock now (a receive), recording the price so it shows in
+  // the cost history / discount view.
+  if (stockQty > 0) {
+    await c.from("stock_movements").insert({
+      item_id, type: "in", quantity: stockQty, unit_price: uc || null,
+      reason: `Stock added on resolve (req #${order.number})`,
+    });
+  }
+
+  // Link the resolved item + the keeper-approved issue quantity, and mark the
+  // request APPROVED. Stock only leaves on collect (Slack Collect / portal).
+  await c.from("req_order_items").update({ item_id, item_name, unit, issued_quantity }).eq("order_id", order_id);
   const upd: Record<string, unknown> = { status: "accepted", decided_at: new Date().toISOString(), decided_by: _uid };
   if (!order.property_id) upd.property_id = property_id;
   await c.from("req_orders").update(upd).eq("id", order_id);
 
-  // Post a Collect button into the Slack thread so the requester can collect it.
+  // Post the itemised bill + a Collect button into the Slack thread.
   if (order.slack_channel && order.slack_thread_ts) {
+    const cost = issued_quantity * uc;
+    const line1 = `✅ *Request #${order.number} approved* — issuing *${issued_quantity} × ${item_name}*${cost > 0 ? `  —  ${cost.toLocaleString()}` : ""}.`;
     const r = await slack("chat.postMessage", {
       channel: order.slack_channel, thread_ts: order.slack_thread_ts,
-      text: `Request #${order.number} approved`,
+      text: `Request #${order.number} approved — tap Collect`,
       blocks: [
-        { type: "section", text: { type: "mrkdwn", text: `✅ *Request #${order.number}* approved — added *${qty} × ${item_name}*. Tap *Collect* once you’ve picked it up.` } },
+        { type: "section", text: { type: "mrkdwn", text: line1 } },
         { type: "actions", elements: [{ type: "button", style: "primary",
           text: { type: "plain_text", text: "Collect" }, action_id: "collect_order", value: order_id }] },
       ],

@@ -47,6 +47,9 @@ export function OrderDetailModal({ order, properties, departments, items, units,
   const [nName, setNName] = useState(reqName);
   const [nUnit, setNUnit] = useState(units[0]?.name ?? "piece");
   const [nType, setNType] = useState<"store" | "fresh">("store");
+  const [nCost, setNCost] = useState("");                 // unit cost of the new item
+  const [nStock, setNStock] = useState(String(reqQty));   // stock to add now
+  const [rIssue, setRIssue] = useState(String(reqQty));   // how much to issue
   const [pick, setPick] = useState("");
 
   const branchDepts = useMemo(() => departments.filter((d) => d.property_id === branchId), [departments, branchId]);
@@ -185,9 +188,30 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                         <option value="fresh">Fresh</option>
                       </select>
                     </div>
+                    <div className="mt-2 flex gap-2">
+                      <div className="flex-1">
+                        <label className="mb-0.5 block text-[11px] font-medium text-stone-500">Cost per {nUnit}</label>
+                        <input type="number" min="0" step="any" value={nCost} onChange={(e) => setNCost(e.target.value)} placeholder="0"
+                          className="w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-teal-600" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="mb-0.5 block text-[11px] font-medium text-stone-500">Stock to add</label>
+                        <input type="number" min="0" value={nStock} onChange={(e) => setNStock(e.target.value)}
+                          className="w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-teal-600" />
+                      </div>
+                    </div>
+                    {Number(nCost) > 0 && Number(nStock) > 0 && (
+                      <p className="mt-1 text-[11px] text-stone-500">Total stock value: <b className="text-stone-700">{(Number(nCost) * Number(nStock)).toLocaleString()}</b></p>
+                    )}
                     <button onClick={() => setAddNew(false)} className="mt-2 text-xs text-stone-500 hover:underline">← pick an existing item instead</button>
                   </div>
                 )}
+
+                <div className="mt-3">
+                  <label className="mb-1 block text-xs font-medium text-stone-600">How much to issue now? <span className="font-normal text-stone-400">asked {reqQty}</span></label>
+                  <input type="number" min="0" value={rIssue} onChange={(e) => setRIssue(e.target.value)}
+                    className="w-28 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-teal-600" />
+                </div>
 
                 <div className="mt-3 flex gap-2">
                   <button
@@ -195,11 +219,15 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                       order_id: order.id, action: "issue", property_id: branchId,
                       department_id: deptId === "__others__" ? null : (deptId || null),
                       use_others: deptId === "__others__",
-                      ...(addNew ? { new_item: { name: nName.trim(), unit: nUnit, type: nType } } : { item_id: chosenItem }),
-                    }), `Approved #${order.number}`)}
+                      issue_qty: Math.max(0, Number(rIssue) || 0),
+                      ...(addNew ? {
+                        new_item: { name: nName.trim(), unit: nUnit, type: nType, unit_cost: Math.max(0, Number(nCost) || 0) },
+                        stock_qty: Math.max(0, Number(nStock) || 0),
+                      } : { item_id: chosenItem }),
+                    }), `Issued #${order.number} — Collect sent`)}
                     disabled={busy || (!addNew && !chosenItem) || (addNew && (!nName.trim() || !deptId))}
                     className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                    <PackageCheck size={15} /> Add &amp; approve
+                    <PackageCheck size={15} /> Add &amp; issue
                   </button>
                 </div>
               </>

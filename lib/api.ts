@@ -233,6 +233,8 @@ export interface ResolveQuickReq {
   use_others?: boolean;
   item_id?: string;
   new_item?: { name: string; unit?: string; type?: "fresh" | "store"; par_level?: number; reorder_point?: number; unit_cost?: number };
+  stock_qty?: number;  // stock to add now (received) at the unit cost
+  issue_qty?: number;  // how much to issue to the requester
 }
 export const resolveQuickReq = (r: ResolveQuickReq) => callFn("resolve-quick-req", r as unknown as Record<string, unknown>);
 

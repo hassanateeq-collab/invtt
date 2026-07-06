@@ -143,8 +143,9 @@ async function collectOrder(orderId: string) {
   if (!order || order.status === "collected") return order;
   const { data: lines } = await c.from("req_order_items").select("*").eq("order_id", orderId);
   for (const l of lines ?? []) {
-    if (!l.item_id) continue;
-    await c.from("stock_movements").insert({ item_id: l.item_id, type: "out", quantity: l.quantity, reason: `Collected via Slack (req #${order.number})` });
+    const q = l.issued_quantity ?? l.quantity; // keeper-approved amount
+    if (!l.item_id || !(q > 0)) continue;
+    await c.from("stock_movements").insert({ item_id: l.item_id, type: "out", quantity: q, reason: `Collected via Slack (req #${order.number})` });
   }
   await c.from("req_orders").update({ status: "collected", collected_at: new Date().toISOString() }).eq("id", orderId);
   return { ...order, status: "collected" };
