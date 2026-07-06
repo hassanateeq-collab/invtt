@@ -107,7 +107,8 @@ export interface ReqOrderItem {
   item_id: string | null;
   item_name: string;
   unit: string | null;
-  quantity: number;
+  quantity: number;                    // requested by the Slack/web user
+  issued_quantity: number | null;      // approved by the keeper (what leaves stock)
 }
 
 export interface ReqOrder {

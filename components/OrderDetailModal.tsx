@@ -2,7 +2,7 @@
 import { useMemo, useRef, useState } from "react";
 import { X, MessageSquare, Globe, Check, PackageCheck, Building2, Zap, Plus, Search, Undo2 } from "lucide-react";
 import type { ReqOrder, OrderStatus, Property, Department, ItemStock, Unit } from "@/lib/types";
-import { decideOrder, resolveQuickReq } from "@/lib/api";
+import { decideOrder, resolveQuickReq, acceptOrder } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
 
 const statusBadge: Record<OrderStatus, string> = {
@@ -23,6 +23,9 @@ export function OrderDetailModal({ order, properties, departments, items, units,
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
+  // keeper-decided issue quantity per line (defaults to what was requested)
+  const [issueQ, setIssueQ] = useState<Record<string, string>>(() =>
+    Object.fromEntries((order.req_order_items ?? []).map((l) => [l.id, String(l.issued_quantity ?? l.quantity)])));
 
   // unresolved = a request whose item isn't linked yet (Slack quick req)
   const line = order.req_order_items?.[0];
@@ -219,7 +222,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
         ) : (
           /* ---- normal order actions -------------------------------------- */
           <div className="flex flex-wrap gap-2 border-t border-stone-100 px-5 py-3">
-            {order.status === "pending" && (rejecting ? (
+            {rejecting ? (
               <div className="flex w-full items-center gap-2">
                 <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && reason.trim() && act(() => decideOrder(order.id, "reject", reason.trim()), `Rejected #${order.number}`)}
@@ -231,30 +234,52 @@ export function OrderDetailModal({ order, properties, departments, items, units,
               </div>
             ) : (
               <>
-                <button onClick={() => act(() => decideOrder(order.id, "accept"), `Accepted #${order.number}`)} disabled={busy}
-                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50">
-                  <Check size={15} /> Accept
-                </button>
-                <button onClick={() => setRejecting(true)} disabled={busy}
-                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
-                  <X size={15} /> Reject
-                </button>
+                {order.status === "pending" && (
+                  <div className="w-full space-y-3">
+                    <div className="space-y-1.5 rounded-xl bg-stone-50 px-3 py-2.5">
+                      <p className="text-xs font-medium text-stone-600">How much to issue? <span className="font-normal text-stone-400">this is what leaves stock</span></p>
+                      {(order.req_order_items ?? []).map((l) => (
+                        <div key={l.id} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="truncate text-stone-700">{l.item_name} <span className="text-xs text-stone-400">· asked {l.quantity}{l.unit ? ` ${l.unit}` : ""}</span></span>
+                          <input type="number" min="0" value={issueQ[l.id] ?? ""} onChange={(e) => setIssueQ((s) => ({ ...s, [l.id]: e.target.value }))}
+                            className="w-20 shrink-0 rounded-lg border border-stone-300 px-2 py-1 text-right text-sm outline-none focus:border-teal-600" />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => act(() => acceptOrder(order.id, (order.req_order_items ?? []).map((l) => ({ id: l.id, quantity: Math.max(0, Number(issueQ[l.id] ?? l.quantity) || 0) }))), `Accepted #${order.number}`)} disabled={busy}
+                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50">
+                        <Check size={15} /> Accept
+                      </button>
+                      <button onClick={() => setRejecting(true)} disabled={busy}
+                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
+                        <X size={15} /> Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {order.status === "accepted" && (
+                  <div className="flex w-full gap-2">
+                    <button onClick={() => act(() => decideOrder(order.id, "collect"), `Collected #${order.number}`)} disabled={busy}
+                      className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                      <PackageCheck size={15} /> Mark as collected
+                    </button>
+                    <button onClick={() => setRejecting(true)} disabled={busy}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
+                      <X size={15} /> Reject
+                    </button>
+                  </div>
+                )}
+                {order.status === "collected" && (
+                  <button onClick={() => act(() => decideOrder(order.id, "undo"), `Undone #${order.number} — stock restored`)} disabled={busy}
+                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50 disabled:opacity-50">
+                    <Undo2 size={15} /> Undo — put stock back
+                  </button>
+                )}
+                {(order.status === "collected" || order.status === "rejected") && (
+                  <button onClick={onClose} className="flex-1 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50">Close</button>
+                )}
               </>
-            ))}
-            {order.status === "accepted" && (
-              <button onClick={() => act(() => decideOrder(order.id, "collect"), `Collected #${order.number}`)} disabled={busy}
-                className="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                <PackageCheck size={15} /> Mark as collected
-              </button>
-            )}
-            {order.status === "collected" && (
-              <button onClick={() => act(() => decideOrder(order.id, "undo"), `Undone #${order.number} — stock restored`)} disabled={busy}
-                className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50 disabled:opacity-50">
-                <Undo2 size={15} /> Undo — put stock back
-              </button>
-            )}
-            {(order.status === "collected" || order.status === "rejected") && (
-              <button onClick={onClose} className="flex-1 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50">Close</button>
             )}
           </div>
         )}

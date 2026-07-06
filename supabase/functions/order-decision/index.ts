@@ -1,7 +1,9 @@
-// order-decision — keeper accepts / rejects / collects a numbered request.
-//   accept  -> status 'accepted', post a "Collect" button into the Slack thread
-//   reject  -> status 'rejected' (reason required), notify the Slack thread
-//   collect -> status 'collected', subtract stock (one 'out' per line)
+// order-decision — keeper accepts / rejects / collects / undoes a request.
+//   accept  -> 'accepted'; stores keeper-approved issued_quantity per line
+//              (body.issued: [{id, quantity}]); posts a Slack Collect button
+//   reject  -> 'rejected' (reason); allowed while pending OR accepted
+//   collect -> 'collected', subtract issued_quantity (one 'out' per line)
+//   undo    -> 'accepted', add the issued_quantity back (reverses collect)
 //
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY,
 //          SLACK_BOT_TOKEN (optional — only needed to message Slack)
@@ -55,10 +57,19 @@ Deno.serve(async (req) => {
 
   if (action === "accept") {
     if (order.status !== "pending") return bad("This request was already handled.");
+    const { data: lines0 } = await c.from("req_order_items").select("id, quantity, item_id").eq("order_id", order_id);
     // A quick req (a line with no linked item) must be resolved, not accepted —
     // the item has to be added to a branch/department first. Block the shortcut.
-    const { data: lines0 } = await c.from("req_order_items").select("item_id").eq("order_id", order_id);
     if ((lines0 ?? []).some((l) => !l.item_id)) return bad("Add the item to a branch first (resolve this request in the portal).");
+    // The keeper decides how much to actually give per line (issued_quantity).
+    // Defaults to the requested quantity if not specified.
+    const issued: { id?: string; quantity?: number }[] = Array.isArray(body.issued) ? body.issued : [];
+    const issuedMap = new Map(issued.map((x) => [String(x.id), Number(x.quantity)]));
+    for (const l of lines0 ?? []) {
+      const q = issuedMap.has(l.id) && Number.isFinite(issuedMap.get(l.id)) && (issuedMap.get(l.id) as number) >= 0
+        ? issuedMap.get(l.id) as number : l.quantity;
+      await c.from("req_order_items").update({ issued_quantity: q }).eq("id", l.id);
+    }
     await c.from("req_orders").update({ status: "accepted", decided_at: new Date().toISOString(), decided_by: _uid }).eq("id", order_id);
     if (order.slack_channel && order.slack_thread_ts) {
       const r = await slack("chat.postMessage", {
@@ -80,7 +91,8 @@ Deno.serve(async (req) => {
   if (action === "reject") {
     const reason = String(body.reason ?? "").trim();
     if (!reason) return bad("A reason is required to reject.");
-    if (order.status !== "pending") return bad("This request was already handled.");
+    // pending or accepted can be rejected (neither has moved stock yet)
+    if (order.status !== "pending" && order.status !== "accepted") return bad("This request was already handled.");
     await c.from("req_orders").update({ status: "rejected", reject_reason: reason, decided_at: new Date().toISOString(), decided_by: _uid }).eq("id", order_id);
     if (order.slack_channel && order.slack_thread_ts) {
       await slack("chat.postMessage", {
@@ -97,9 +109,10 @@ Deno.serve(async (req) => {
     if (order.status !== "accepted") return bad("Only an accepted request can be collected.");
     const { data: lines } = await c.from("req_order_items").select("*").eq("order_id", order_id);
     for (const l of lines ?? []) {
-      if (!l.item_id) continue;
+      const q = l.issued_quantity ?? l.quantity; // keeper-approved amount
+      if (!l.item_id || !(q > 0)) continue;
       await c.from("stock_movements").insert({
-        item_id: l.item_id, type: "out", quantity: l.quantity,
+        item_id: l.item_id, type: "out", quantity: q,
         reason: `Collected (req #${order.number})`,
       });
     }
@@ -120,9 +133,10 @@ Deno.serve(async (req) => {
     if (order.status !== "collected") return bad("Only a collected request can be undone.");
     const { data: lines } = await c.from("req_order_items").select("*").eq("order_id", order_id);
     for (const l of lines ?? []) {
-      if (!l.item_id) continue;
+      const q = l.issued_quantity ?? l.quantity; // put back what was actually issued
+      if (!l.item_id || !(q > 0)) continue;
       await c.from("stock_movements").insert({
-        item_id: l.item_id, type: "in", quantity: l.quantity,
+        item_id: l.item_id, type: "in", quantity: q,
         reason: `Undo collect (req #${order.number})`,
       });
     }

@@ -152,13 +152,7 @@ export function RequestsView({ orders, onChanged, onOpen }: {
                     <FileDown size={13} /> PDF
                   </button>
 
-                  {o.status === "pending" && !o.req_order_items?.[0]?.item_id && (
-                    <button onClick={() => onOpen(o)}
-                      className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-700">
-                      ⚡ Resolve item
-                    </button>
-                  )}
-                  {o.status === "pending" && !!o.req_order_items?.[0]?.item_id && (rejectingId === o.id ? (
+                  {rejectingId === o.id ? (
                     <div className="flex flex-1 items-center gap-2">
                       <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && reason.trim() && act(o, "reject", reason.trim())}
@@ -171,22 +165,37 @@ export function RequestsView({ orders, onChanged, onOpen }: {
                     </div>
                   ) : (
                     <>
-                      <button onClick={() => act(o, "accept")} disabled={busy}
-                        className="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50">
-                        <Check size={13} /> Accept
-                      </button>
-                      <button onClick={() => { setRejectingId(o.id); setReason(""); }} disabled={busy}
-                        className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
-                        <X size={13} /> Reject
-                      </button>
+                      {o.status === "pending" && !o.req_order_items?.[0]?.item_id && (
+                        <button onClick={() => onOpen(o)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-700">
+                          ⚡ Resolve item
+                        </button>
+                      )}
+                      {o.status === "pending" && !!o.req_order_items?.[0]?.item_id && (
+                        <>
+                          <button onClick={() => onOpen(o)} disabled={busy}
+                            className="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50">
+                            <Check size={13} /> Accept
+                          </button>
+                          <button onClick={() => { setRejectingId(o.id); setReason(""); }} disabled={busy}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
+                            <X size={13} /> Reject
+                          </button>
+                        </>
+                      )}
+                      {o.status === "accepted" && (
+                        <>
+                          <button onClick={() => act(o, "collect")} disabled={busy}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                            <PackageCheck size={13} /> Mark collected
+                          </button>
+                          <button onClick={() => { setRejectingId(o.id); setReason(""); }} disabled={busy}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
+                            <X size={13} /> Reject
+                          </button>
+                        </>
+                      )}
                     </>
-                  ))}
-
-                  {o.status === "accepted" && (
-                    <button onClick={() => act(o, "collect")} disabled={busy}
-                      className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                      <PackageCheck size={13} /> Mark collected
-                    </button>
                   )}
                   {o.status === "collected" && (
                     <button onClick={() => act(o, "undo")} disabled={busy}
