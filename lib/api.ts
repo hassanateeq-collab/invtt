@@ -218,7 +218,7 @@ export async function fetchOrders(): Promise<ReqOrder[]> {
   if (error) throw new Error(error.message);
   return (data ?? []) as ReqOrder[];
 }
-export const decideOrder = (order_id: string, action: "accept" | "reject" | "collect", reason?: string) =>
+export const decideOrder = (order_id: string, action: "accept" | "reject" | "collect" | "undo", reason?: string) =>
   callFn("order-decision", { order_id, action, reason });
 
 export interface ResolveQuickReq {

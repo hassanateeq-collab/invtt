@@ -114,5 +114,26 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
 
+  if (action === "undo") {
+    // Undo a collection: put the stock back and return the request to
+    // 'accepted' (awaiting collect) so it can be re-collected or rejected.
+    if (order.status !== "collected") return bad("Only a collected request can be undone.");
+    const { data: lines } = await c.from("req_order_items").select("*").eq("order_id", order_id);
+    for (const l of lines ?? []) {
+      if (!l.item_id) continue;
+      await c.from("stock_movements").insert({
+        item_id: l.item_id, type: "in", quantity: l.quantity,
+        reason: `Undo collect (req #${order.number})`,
+      });
+    }
+    await c.from("req_orders").update({ status: "accepted", collected_at: null }).eq("id", order_id);
+    if (order.slack_channel && order.slack_thread_ts) {
+      await slack("chat.postMessage", { channel: order.slack_channel, thread_ts: order.slack_thread_ts,
+        text: `Request #${order.number} collection undone`,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: `↩️ *Request #${order.number}* — collection undone, stock put back.` } }] });
+    }
+    return json({ ok: true });
+  }
+
   return bad("Unknown action");
 });

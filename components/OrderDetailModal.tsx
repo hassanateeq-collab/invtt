@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
-import { X, MessageSquare, Globe, Check, PackageCheck, Building2, Zap, Plus, Search } from "lucide-react";
+import { X, MessageSquare, Globe, Check, PackageCheck, Building2, Zap, Plus, Search, Undo2 } from "lucide-react";
 import type { ReqOrder, OrderStatus, Property, Department, ItemStock, Unit } from "@/lib/types";
 import { decideOrder, resolveQuickReq } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
@@ -247,8 +247,14 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                 <PackageCheck size={15} /> Mark as collected
               </button>
             )}
+            {order.status === "collected" && (
+              <button onClick={() => act(() => decideOrder(order.id, "undo"), `Undone #${order.number} — stock restored`)} disabled={busy}
+                className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50 disabled:opacity-50">
+                <Undo2 size={15} /> Undo — put stock back
+              </button>
+            )}
             {(order.status === "collected" || order.status === "rejected") && (
-              <button onClick={onClose} className="w-full rounded-lg px-3 py-2 text-sm font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50">Close</button>
+              <button onClick={onClose} className="flex-1 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50">Close</button>
             )}
           </div>
         )}

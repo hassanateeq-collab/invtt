@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { ClipboardList, FileDown, MessageSquare, Globe, Check, X, PackageCheck, Download } from "lucide-react";
+import { ClipboardList, FileDown, MessageSquare, Globe, Check, X, PackageCheck, Download, Undo2 } from "lucide-react";
 import jsPDF from "jspdf";
 import type { ReqOrder, OrderStatus } from "@/lib/types";
 import { decideOrder } from "@/lib/api";
@@ -39,11 +39,13 @@ export function RequestsView({ orders, onChanged, onOpen }: {
     () => (filter === "all" ? orders : orders.filter((o) => o.status === filter)),
     [orders, filter]);
 
-  async function act(o: ReqOrder, action: "accept" | "reject" | "collect", r?: string) {
+  async function act(o: ReqOrder, action: "accept" | "reject" | "collect" | "undo", r?: string) {
     setBusyId(o.id);
     try {
       await decideOrder(o.id, action, r);
-      onChanged(action === "accept" ? `Accepted #${o.number}` : action === "reject" ? `Rejected #${o.number}` : `Collected #${o.number}`);
+      const msg = action === "accept" ? `Accepted #${o.number}` : action === "reject" ? `Rejected #${o.number}`
+        : action === "undo" ? `Undone #${o.number} — stock restored` : `Collected #${o.number}`;
+      onChanged(msg);
       setRejectingId(null); setReason("");
     } catch (e) { alert(e instanceof Error ? e.message : "Failed"); }
     finally { setBusyId(null); }
@@ -184,6 +186,12 @@ export function RequestsView({ orders, onChanged, onOpen }: {
                     <button onClick={() => act(o, "collect")} disabled={busy}
                       className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
                       <PackageCheck size={13} /> Mark collected
+                    </button>
+                  )}
+                  {o.status === "collected" && (
+                    <button onClick={() => act(o, "undo")} disabled={busy}
+                      className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50 disabled:opacity-50">
+                      <Undo2 size={13} /> Undo — put back
                     </button>
                   )}
                 </div>
