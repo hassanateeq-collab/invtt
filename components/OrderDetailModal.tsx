@@ -51,6 +51,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
   const [nStock, setNStock] = useState(String(reqQty));   // stock to add now
   const [rIssue, setRIssue] = useState(String(reqQty));   // how much to issue
   const [pick, setPick] = useState("");
+  const [step, setStep] = useState<"pick" | "issue">("pick"); // 1) add item  2) issue qty
 
   const branchDepts = useMemo(() => departments.filter((d) => d.property_id === branchId), [departments, branchId]);
   // an existing "Others" department, if the branch already has one
@@ -72,6 +73,13 @@ export function OrderDetailModal({ order, properties, departments, items, units,
       })
       .sort((a, b) => a.name.localeCompare(b.name)).slice(0, 8);
   }, [branchItems, reqName, pick, branchId]);
+
+  // When the branch has no matching item we go straight to the new-item form
+  // (so its name field is always editable). Otherwise the keeper can pick one.
+  const useNew = addNew || matches.length === 0;
+  const chosenName = useNew ? (nName.trim() || reqName)
+    : (branchItems.find((i) => i.id === chosenItem)?.name ?? reqName);
+  const canAdd = useNew ? !!(nName.trim() && deptId) : !!chosenItem;
 
   const actedRef = useRef(false);
   // Close the popup instantly (one click), then do the network work in the
@@ -128,8 +136,8 @@ export function OrderDetailModal({ order, properties, departments, items, units,
         {/* ---- quick-req resolver ------------------------------------------ */}
         {isQuick ? (
           <div className="border-t border-stone-100 px-5 py-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">Add “{reqName}” &amp; approve — qty {reqQty}</p>
-            <p className="mb-2 text-[11px] text-stone-500">Adds the item, approves the request, and posts a <b>Collect</b> button in Slack. Stock only leaves when it’s collected.</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">{step === "pick" ? `Add “${reqName}” — qty ${reqQty}` : `Issue “${chosenName}” — asked ${reqQty}`}</p>
+            <p className="mb-2 text-[11px] text-stone-500">{step === "pick" ? "First add the item to a branch/department. Next you’ll set how much to issue." : "Set the quantity to issue, then approve. Stock only leaves when it’s collected — a Collect button is posted in Slack."}</p>
             {branchLocked ? (
               <p className="mb-3 flex items-center gap-1 rounded-lg bg-stone-50 px-2.5 py-1.5 text-xs text-stone-600"><Building2 size={12} /> {order.properties?.code}{order.department_name ? ` · ${order.department_name}` : ""} <span className="text-stone-400">(chosen by requester)</span></p>
             ) : (
@@ -143,7 +151,8 @@ export function OrderDetailModal({ order, properties, departments, items, units,
               </>
             )}
 
-            {branchId && (
+            {/* STEP 1 — add the item -------------------------------------- */}
+            {branchId && step === "pick" && (
               <>
                 <label className="mb-1 block text-xs font-medium text-stone-600">Put it in which department?</label>
                 <select value={deptId} onChange={(e) => setDeptId(e.target.value)}
@@ -153,7 +162,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                   {!othersDept && <option value="__others__">Others (one-off / unique items)</option>}
                 </select>
 
-                {!addNew ? (
+                {!useNew ? (
                   <>
                     <div className="relative mb-2">
                       <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -161,9 +170,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                         className="w-full rounded-xl border border-stone-300 py-2 pl-8 pr-3 text-sm outline-none focus:border-teal-600" />
                     </div>
                     <div className="max-h-40 overflow-y-auto rounded-xl border border-stone-200">
-                      {matches.length === 0 ? (
-                        <p className="px-3 py-3 text-center text-xs text-stone-400">No match — add it as a new item below.</p>
-                      ) : matches.map((i) => (
+                      {matches.map((i) => (
                         <button key={i.id} onClick={() => setChosenItem(i.id)}
                           className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm ${chosenItem === i.id ? "bg-teal-50 font-medium text-teal-800" : "text-stone-700 hover:bg-stone-50"}`}>
                           <span>{i.name}</span>
@@ -177,6 +184,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                   <div className="rounded-xl border border-dashed border-teal-300 bg-teal-50/40 p-3">
                     <p className="mb-1 text-xs font-semibold text-teal-800">New item</p>
                     <p className="mb-2 text-[11px] text-stone-500">Will be added to <b>{targetDeptName}</b> in this branch.</p>
+                    <label className="mb-0.5 block text-[11px] font-medium text-stone-500">Item name</label>
                     <input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="Item name"
                       className="mb-2 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-teal-600" />
                     <div className="flex gap-2">
@@ -203,36 +211,64 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                     {Number(nCost) > 0 && Number(nStock) > 0 && (
                       <p className="mt-1 text-[11px] text-stone-500">Total stock value: <b className="text-stone-700">{(Number(nCost) * Number(nStock)).toLocaleString()}</b></p>
                     )}
-                    <button onClick={() => setAddNew(false)} className="mt-2 text-xs text-stone-500 hover:underline">← pick an existing item instead</button>
+                    {matches.length > 0 && (
+                      <button onClick={() => setAddNew(false)} className="mt-2 text-xs text-stone-500 hover:underline">← pick an existing item instead</button>
+                    )}
                   </div>
                 )}
 
+                {!rejecting && (
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={() => { setRejecting(false); setStep("issue"); }} disabled={busy || !canAdd}
+                      className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                      <Plus size={15} /> Add
+                    </button>
+                    <button onClick={() => setRejecting(true)} disabled={busy}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
+                      <X size={15} /> Reject
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* STEP 2 — decide the issue quantity ------------------------- */}
+            {branchId && step === "issue" && (
+              <>
+                <div className="rounded-xl bg-stone-50 px-3 py-2.5">
+                  <p className="text-sm font-medium text-stone-900">{chosenName}</p>
+                  <p className="mt-0.5 text-xs text-stone-500">Going to <b>{targetDeptName}</b> · {order.properties?.code ?? properties.find((p) => p.id === branchId)?.code}</p>
+                  {useNew && Number(nStock) > 0 && (
+                    <p className="mt-0.5 text-xs text-stone-500">Adding {Number(nStock)} {nUnit} to stock{Number(nCost) > 0 ? ` @ ${Number(nCost).toLocaleString()} each` : ""}</p>
+                  )}
+                </div>
+
                 <div className="mt-3">
                   <label className="mb-1 block text-xs font-medium text-stone-600">How much to issue now? <span className="font-normal text-stone-400">asked {reqQty}</span></label>
-                  <input type="number" min="0" value={rIssue} onChange={(e) => setRIssue(e.target.value)}
+                  <input autoFocus type="number" min="0" value={rIssue} onChange={(e) => setRIssue(e.target.value)}
                     className="w-28 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-teal-600" />
                 </div>
 
                 {!rejecting && (
                   <div className="mt-3 flex gap-2">
+                    <button onClick={() => setStep("pick")} disabled={busy}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50 disabled:opacity-50">
+                      ← Back
+                    </button>
                     <button
                       onClick={() => act(() => resolveQuickReq({
                         order_id: order.id, action: "issue", property_id: branchId,
                         department_id: deptId === "__others__" ? null : (deptId || null),
                         use_others: deptId === "__others__",
                         issue_qty: Math.max(0, Number(rIssue) || 0),
-                        ...(addNew ? {
+                        ...(useNew ? {
                           new_item: { name: nName.trim(), unit: nUnit, type: nType, unit_cost: Math.max(0, Number(nCost) || 0) },
                           stock_qty: Math.max(0, Number(nStock) || 0),
                         } : { item_id: chosenItem }),
                       }), `Issued #${order.number} — Collect sent`)}
-                      disabled={busy || (!addNew && !chosenItem) || (addNew && (!nName.trim() || !deptId))}
+                      disabled={busy || !canAdd}
                       className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                      <PackageCheck size={15} /> Add &amp; issue
-                    </button>
-                    <button onClick={() => setRejecting(true)} disabled={busy}
-                      className="inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
-                      <X size={15} /> Reject
+                      <PackageCheck size={15} /> Issue &amp; send Collect
                     </button>
                   </div>
                 )}
