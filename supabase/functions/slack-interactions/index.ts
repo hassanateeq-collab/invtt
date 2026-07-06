@@ -112,7 +112,8 @@ async function buildView(meta: Meta, values: Record<string, Record<string, { val
       for (const it of items.slice(0, 90)) {
         blocks.push({ type: "input", optional: true, block_id: `qty_${it.id}`,
           label: { type: "plain_text", text: `${it.name}${it.unit ? ` (${it.unit})` : ""}`.slice(0, 150) },
-          element: { type: "plain_text_input", action_id: "v", placeholder: { type: "plain_text", text: "qty" },
+          element: { type: "number_input", is_decimal_allowed: true, min_value: "0", action_id: "v",
+            placeholder: { type: "plain_text", text: "qty" },
             ...(qtys[it.id] ? { initial_value: String(qtys[it.id]) } : {}) } });
       }
       if (items.length > 90) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: `Showing the first 90 of ${items.length} matches.` }] });
