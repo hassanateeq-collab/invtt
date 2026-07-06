@@ -671,6 +671,7 @@ export default function Page() {
                 <div className="col-span-3 text-right">Actions</div>
               </div>
 
+              <div className="max-h-[60vh] overflow-y-auto">
               {loading ? (
                 <p className="px-4 py-10 text-center text-sm text-stone-400">Loading…</p>
               ) : visible.length === 0 ? (
@@ -743,6 +744,7 @@ export default function Page() {
                   );
                 })
               )}
+              </div>
             </div>
             <p className="mt-2 px-1 text-xs text-stone-400">
               The “Buy” figure is how much to order to reach par. It updates automatically the moment stock moves.
