@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 import { X, MessageSquare, Globe, Check, PackageCheck, Building2, Zap, Plus, Search, Undo2 } from "lucide-react";
-import type { ReqOrder, OrderStatus, Property, Department, ItemStock, Unit } from "@/lib/types";
+import type { ReqOrder, OrderStatus, Property, Department, ItemStock, Unit, Area } from "@/lib/types";
 import { decideOrder, resolveQuickReq, acceptOrder } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
 
@@ -16,8 +16,8 @@ const statusWord: Record<OrderStatus, string> = {
 };
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-export function OrderDetailModal({ order, properties, departments, items, units, onClose, onChanged }: {
-  order: ReqOrder; properties: Property[]; departments: Department[]; items: ItemStock[]; units: Unit[];
+export function OrderDetailModal({ order, properties, departments, areas, items, units, onClose, onChanged }: {
+  order: ReqOrder; properties: Property[]; departments: Department[]; areas: Area[]; items: ItemStock[]; units: Unit[];
   onClose: () => void; onChanged: (msg: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -46,7 +46,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
   const [addNew, setAddNew] = useState(false);
   const [nName, setNName] = useState(reqName);
   const [nUnit, setNUnit] = useState(units[0]?.name ?? "piece");
-  const [nType, setNType] = useState<"store" | "fresh">("store");
+  const [nArea, setNArea] = useState("");                 // storage area for the new item
   const [nCost, setNCost] = useState("");                 // unit cost of the new item
   const [nStock, setNStock] = useState(String(reqQty));   // stock to add now
   const [rIssue, setRIssue] = useState(String(reqQty));   // how much to issue
@@ -54,6 +54,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
   const [step, setStep] = useState<"pick" | "issue">("pick"); // 1) add item  2) issue qty
 
   const branchDepts = useMemo(() => departments.filter((d) => d.property_id === branchId), [departments, branchId]);
+  const branchAreas = useMemo(() => areas.filter((a) => a.property_id === branchId).sort((a, b) => a.name.localeCompare(b.name)), [areas, branchId]);
   // an existing "Others" department, if the branch already has one
   const othersDept = useMemo(() => branchDepts.find((d) => d.name.trim().toLowerCase() === "others"), [branchDepts]);
   const targetDeptName = useMemo(
@@ -188,13 +189,19 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                     <input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="Item name"
                       className="mb-2 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-teal-600" />
                     <div className="flex gap-2">
-                      <select value={nUnit} onChange={(e) => setNUnit(e.target.value)} className="flex-1 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm">
-                        {units.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
-                      </select>
-                      <select value={nType} onChange={(e) => setNType(e.target.value as "store" | "fresh")} className="flex-1 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm">
-                        <option value="store">Storeroom</option>
-                        <option value="fresh">Fresh</option>
-                      </select>
+                      <div className="flex-1">
+                        <label className="mb-0.5 block text-[11px] font-medium text-stone-500">Unit</label>
+                        <select value={nUnit} onChange={(e) => setNUnit(e.target.value)} className="w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm">
+                          {units.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="mb-0.5 block text-[11px] font-medium text-stone-500">Storage area</label>
+                        <select value={nArea} onChange={(e) => setNArea(e.target.value)} className="w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm">
+                          <option value="">Unassigned</option>
+                          {branchAreas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                        </select>
+                      </div>
                     </div>
                     <div className="mt-2 flex gap-2">
                       <div className="flex-1">
@@ -237,7 +244,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
               <>
                 <div className="rounded-xl bg-stone-50 px-3 py-2.5">
                   <p className="text-sm font-medium text-stone-900">{chosenName}</p>
-                  <p className="mt-0.5 text-xs text-stone-500">Going to <b>{targetDeptName}</b> · {order.properties?.code ?? properties.find((p) => p.id === branchId)?.code}</p>
+                  <p className="mt-0.5 text-xs text-stone-500">Going to <b>{targetDeptName}</b> · {order.properties?.code ?? properties.find((p) => p.id === branchId)?.code}{useNew ? ` · ${nArea ? branchAreas.find((a) => a.id === nArea)?.name : "Unassigned"}` : ""}</p>
                   {useNew && Number(nStock) > 0 && (
                     <p className="mt-0.5 text-xs text-stone-500">Adding {Number(nStock)} {nUnit} to stock{Number(nCost) > 0 ? ` @ ${Number(nCost).toLocaleString()} each` : ""}</p>
                   )}
@@ -262,7 +269,7 @@ export function OrderDetailModal({ order, properties, departments, items, units,
                         use_others: deptId === "__others__",
                         issue_qty: Math.max(0, Number(rIssue) || 0),
                         ...(useNew ? {
-                          new_item: { name: nName.trim(), unit: nUnit, type: nType, unit_cost: Math.max(0, Number(nCost) || 0) },
+                          new_item: { name: nName.trim(), unit: nUnit, type: "store", area_id: nArea || null, unit_cost: Math.max(0, Number(nCost) || 0) },
                           stock_qty: Math.max(0, Number(nStock) || 0),
                         } : { item_id: chosenItem }),
                       }), `Issued #${order.number} — Collect sent`)}

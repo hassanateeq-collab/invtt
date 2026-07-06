@@ -232,7 +232,7 @@ export interface ResolveQuickReq {
   department_id?: string | null;
   use_others?: boolean;
   item_id?: string;
-  new_item?: { name: string; unit?: string; type?: "fresh" | "store"; par_level?: number; reorder_point?: number; unit_cost?: number };
+  new_item?: { name: string; unit?: string; type?: "fresh" | "store"; area_id?: string | null; par_level?: number; reorder_point?: number; unit_cost?: number };
   stock_qty?: number;  // stock to add now (received) at the unit cost
   issue_qty?: number;  // how much to issue to the requester
 }

@@ -112,8 +112,9 @@ Deno.serve(async (req) => {
       const { data: np } = await c.from("products").insert({ name, unit, type }).select("id").maybeSingle();
       product_id = np?.id ?? null;
     }
+    const area_id = ni.area_id ? String(ni.area_id) : null;
     const { data: it, error: itErr } = await c.from("items").insert({
-      property_id, department_id: targetDept, product_id, name, unit, type,
+      property_id, department_id: targetDept, product_id, name, unit, type, area_id,
       par_level: Math.max(0, Number(ni.par_level) || 0),
       reorder_point: Math.max(0, Number(ni.reorder_point) || 0),
       unit_cost: Math.max(0, Number(ni.unit_cost) || 0),

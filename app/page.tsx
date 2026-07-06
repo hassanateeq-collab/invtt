@@ -806,7 +806,7 @@ export default function Page() {
       )}
       <NotificationToasts toasts={toasts} onDismiss={dismissToast} onOpen={openToast} />
       {selectedOrder && (
-        <OrderDetailModal order={selectedOrder} properties={properties} departments={departments} items={allItems} units={units}
+        <OrderDetailModal order={selectedOrder} properties={properties} departments={departments} areas={areas} items={allItems} units={units}
           onClose={() => setSelectedOrder(null)}
           onChanged={async (msg) => { flash(msg); setSelectedOrder(null); await reloadOrders(); await refresh().catch(() => {}); }} />
       )}
