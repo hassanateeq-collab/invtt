@@ -84,7 +84,6 @@ export default function Page() {
   const [bellBusyId, setBellBusyId] = useState<string | null>(null);
   const seenReqIds = useRef<Set<string> | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [toastBusyKey, setToastBusyKey] = useState<number | null>(null);
   const toastKey = useRef(0);
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -273,10 +272,9 @@ export default function Page() {
   }, [orders]);
 
   const dismissToast = (key: number) => setToasts((t) => t.filter((x) => x.key !== key));
-  const openToast = (key: number) => { setView("requests"); dismissToast(key); };
-  function acceptToast(t: Toast) {
-    // Open the request so the keeper can resolve it (quick reqs) or set the
-    // issue quantities before accepting — never a blind one-tap accept.
+  function openToast(t: Toast) {
+    // Open the request detail so the keeper can resolve it (quick reqs) or set
+    // the issue quantities before accepting — never a blind one-tap accept.
     setSelectedOrder(t.order);
     dismissToast(t.key);
   }
@@ -806,8 +804,7 @@ export default function Page() {
       {toast && (
         <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-stone-900 px-4 py-2.5 text-sm text-white shadow-lg">{toast}</div>
       )}
-      <NotificationToasts toasts={toasts} busyKey={toastBusyKey}
-        onDismiss={dismissToast} onOpen={openToast} onAccept={acceptToast} />
+      <NotificationToasts toasts={toasts} onDismiss={dismissToast} onOpen={openToast} />
       {selectedOrder && (
         <OrderDetailModal order={selectedOrder} properties={properties} departments={departments} items={allItems} units={units}
           onClose={() => setSelectedOrder(null)}
