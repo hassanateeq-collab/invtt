@@ -57,14 +57,15 @@ async function deptOptions() {
   }));
 }
 // Every item TAGGED with a department (many-to-many), alphabetical — one row
-// each in the modal. An item tagged to several departments shows in each.
+// each in the modal, with its current stock. An item tagged to several
+// departments shows in each.
 async function deptItems(deptId: string) {
-  const { data } = await db().from("items")
-    .select("id, name, unit, item_departments!inner(department_id)")
-    .eq("item_departments.department_id", deptId)
+  const { data } = await db().from("v_item_stock")
+    .select("id, name, unit, current_stock")
+    .contains("department_ids", [deptId])
     .order("name");
   return (data ?? []).map((i: Record<string, unknown>) => ({
-    id: String(i.id), name: String(i.name), unit: String(i.unit ?? ""),
+    id: String(i.id), name: String(i.name), unit: String(i.unit ?? ""), stock: Number(i.current_stock) || 0,
   }));
 }
 
@@ -108,12 +109,17 @@ async function buildView(meta: Meta, values: Record<string, Record<string, { val
     if (!items.length) {
       blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: q ? `No items match “${meta.query}”.` : "No items in this department yet." }] });
     } else {
-      blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "Type a quantity next to the items you need, then tap *Request*." }] });
+      blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "Type a quantity next to the items you need, then tap *Request*. Out-of-stock items can't be requested." }] });
       for (const it of items.slice(0, 90)) {
+        // Out of stock — show it, but no quantity field (can't request what isn't there)
+        if (it.stock <= 0) {
+          blocks.push({ type: "section", text: { type: "mrkdwn", text: `🚫 *${it.name}*${it.unit ? ` (${it.unit})` : ""} — _out of stock_` } });
+          continue;
+        }
         blocks.push({ type: "input", optional: true, block_id: `qty_${it.id}`,
-          label: { type: "plain_text", text: `${it.name}${it.unit ? ` (${it.unit})` : ""}`.slice(0, 150) },
-          element: { type: "number_input", is_decimal_allowed: true, min_value: "0", action_id: "v",
-            placeholder: { type: "plain_text", text: "qty" },
+          label: { type: "plain_text", text: `${it.name}${it.unit ? ` (${it.unit})` : ""} · ${it.stock} left`.slice(0, 150) },
+          element: { type: "number_input", is_decimal_allowed: true, min_value: "0", max_value: String(it.stock), action_id: "v",
+            placeholder: { type: "plain_text", text: `up to ${it.stock}` },
             ...(qtys[it.id] ? { initial_value: String(qtys[it.id]) } : {}) } });
       }
       if (items.length > 90) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: `Showing the first 90 of ${items.length} matches.` }] });
@@ -291,16 +297,18 @@ Deno.serve(async (req) => {
     const cart: { id: string; name: string; unit: string; qty: number }[] = [];
     const errors: Record<string, string> = {};
     for (const it of items) {
+      if (it.stock <= 0) continue; // out of stock — not requestable
       const raw = qtys[it.id];
       if (raw === undefined || raw === null || String(raw).trim() === "") continue;
       const n = Number(raw);
       if (!Number.isFinite(n) || n <= 0) { if (visible.has(it.id)) errors[`qty_${it.id}`] = "Enter a number greater than 0."; continue; }
+      if (n > it.stock) { if (visible.has(it.id)) errors[`qty_${it.id}`] = `Only ${it.stock} in stock.`; continue; }
       cart.push({ id: it.id, name: it.name, unit: it.unit, qty: n });
     }
     if (Object.keys(errors).length) return jsonResp({ response_action: "errors", errors });
     if (!cart.length) {
-      const first = items.find((it) => visible.has(it.id));
-      return jsonResp({ response_action: "errors", errors: first ? { [`qty_${first.id}`]: "Enter a quantity for at least one item." } : { search: "Type an item and a quantity." } });
+      const first = items.find((it) => visible.has(it.id) && it.stock > 0);
+      return jsonResp({ response_action: "errors", errors: first ? { [`qty_${first.id}`]: "Enter a quantity for at least one item." } : { search: "No in-stock items here — try another search or department." } });
     }
     const c = db();
     const { data: order, error } = await c.from("req_orders").insert({
