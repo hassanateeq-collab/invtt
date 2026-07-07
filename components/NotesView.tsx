@@ -36,9 +36,9 @@ export function NotesView({ notes, items, properties, onChanged }: {
   }, [notes]);
 
   const branchOf = (pid: string) => properties.find((p) => p.id === pid);
-  // reminders = anything in the red (stock at/below zero) → shortage to fix
+  // reminders = anything out of stock (zero or, legacy, below) → restock list
   const reminders = useMemo(
-    () => items.filter((i) => i.current_stock < 0).sort((a, b) => a.current_stock - b.current_stock),
+    () => items.filter((i) => i.current_stock <= 0).sort((a, b) => a.current_stock - b.current_stock),
     [items]);
 
   return (
@@ -106,10 +106,10 @@ export function NotesView({ notes, items, properties, onChanged }: {
       {/* Portal reminders */}
       <div className="rounded-2xl border border-stone-200 bg-white p-4">
         <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-stone-700"><BellRing size={16} className="text-amber-600" /> Portal reminders</h2>
-        <p className="mb-3 text-xs text-stone-400">Items in the negative — more was issued/requested than in stock. The number is how much is short. Clears itself once you adjust/receive stock.</p>
+        <p className="mb-3 text-xs text-stone-400">Items that are out of stock (zero) — restock these. Clears itself once you receive/adjust stock.</p>
 
         {reminders.length === 0 ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-8 text-center text-sm text-emerald-700">All clear — nothing in the negative. ✅</div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-8 text-center text-sm text-emerald-700">All clear — nothing out of stock. ✅</div>
         ) : (
           <div className="space-y-2">
             {reminders.map((i) => (
@@ -117,7 +117,7 @@ export function NotesView({ notes, items, properties, onChanged }: {
                 <TriangleAlert size={16} className="shrink-0 text-amber-600" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-stone-900">{i.name}</p>
-                  <p className="text-xs text-stone-500">{[branchOf(i.property_id)?.code].filter(Boolean).join("")} · short by <span className="font-semibold text-red-600">{Math.abs(i.current_stock)} {i.unit}</span></p>
+                  <p className="text-xs text-stone-500">{[branchOf(i.property_id)?.code].filter(Boolean).join("")} · {i.current_stock < 0 ? <>short by <span className="font-semibold text-red-600">{Math.abs(i.current_stock)} {i.unit}</span></> : <span className="font-semibold text-red-600">out of stock</span>}</p>
                 </div>
                 <span className="tnum text-sm font-semibold text-red-600">{i.current_stock}</span>
               </div>
