@@ -190,12 +190,23 @@ async function collectOrder(orderId: string) {
   const { data: order } = await c.from("req_orders").select("*").eq("id", orderId).maybeSingle();
   if (!order || order.status === "collected") return order;
   const { data: lines } = await c.from("req_order_items").select("*").eq("order_id", orderId);
+  // Never let stock go negative — take only what's on hand, report the rest.
+  const shortages: string[] = [];
   for (const l of lines ?? []) {
     const q = l.issued_quantity ?? l.quantity; // keeper-approved amount
     if (!l.item_id || !(q > 0)) continue;
-    await c.from("stock_movements").insert({ item_id: l.item_id, type: "out", quantity: q, reason: `Collected via Slack (req #${order.number})` });
+    const { data: st } = await c.from("v_item_stock").select("current_stock").eq("id", l.item_id).maybeSingle();
+    const avail = Math.max(0, Number(st?.current_stock) || 0);
+    const take = Math.min(q, avail);
+    if (take > 0) await c.from("stock_movements").insert({ item_id: l.item_id, type: "out", quantity: take, reason: `Collected via Slack (req #${order.number})` });
+    if (q - take > 0) shortages.push(`• *${l.item_name}* — short ${q - take} ${l.unit ?? ""}`);
   }
   await c.from("req_orders").update({ status: "collected", collected_at: new Date().toISOString() }).eq("id", orderId);
+  if (shortages.length && order.slack_channel && order.slack_thread_ts) {
+    await slack("chat.postMessage", BOT(), { channel: order.slack_channel, thread_ts: order.slack_thread_ts,
+      text: "Some items are out of stock",
+      blocks: [{ type: "section", text: { type: "mrkdwn", text: `⚠️ *Out of stock — please add these later:*\n${shortages.join("\n")}` } }] });
+  }
   return { ...order, status: "collected" };
 }
 
