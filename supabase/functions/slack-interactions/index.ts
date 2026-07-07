@@ -138,6 +138,53 @@ async function buildQuickView(meta: Record<string, unknown>) {
   };
 }
 
+// Items still returnable from a collected order = what was taken (issued) minus
+// what has already been given back on approved returns.
+async function returnableItems(parentId: string) {
+  const c = db();
+  const { data: lines } = await c.from("req_order_items")
+    .select("item_id, item_name, unit, quantity, issued_quantity").eq("order_id", parentId);
+  const { data: rets } = await c.from("req_orders").select("id")
+    .eq("parent_order_id", parentId).eq("is_return", true).eq("status", "collected");
+  const retIds = (rets ?? []).map((r: Record<string, unknown>) => String(r.id));
+  const returnedByItem: Record<string, number> = {};
+  if (retIds.length) {
+    const { data: rlines } = await c.from("req_order_items").select("item_id, quantity").in("order_id", retIds);
+    for (const rl of rlines ?? []) {
+      if (rl.item_id) returnedByItem[String(rl.item_id)] = (returnedByItem[String(rl.item_id)] ?? 0) + (Number(rl.quantity) || 0);
+    }
+  }
+  const out: { item_id: string; name: string; unit: string; taken: number; remaining: number }[] = [];
+  for (const l of lines ?? []) {
+    if (!l.item_id) continue;
+    const taken = Number(l.issued_quantity ?? l.quantity) || 0;
+    const remaining = taken - (returnedByItem[String(l.item_id)] ?? 0);
+    if (remaining > 0) out.push({ item_id: String(l.item_id), name: String(l.item_name), unit: String(l.unit ?? ""), taken, remaining });
+  }
+  return out;
+}
+
+async function buildReturnView(parentId: string, meta: Record<string, unknown>) {
+  const items = await returnableItems(parentId);
+  const blocks: unknown[] = [
+    { type: "section", text: { type: "mrkdwn", text: `*Return items from request #${meta.number}*\nEnter how many of each you want to give back — *sealed / unopened only*. Leave a field blank to keep it.` } },
+    { type: "divider" },
+  ];
+  if (!items.length) {
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: "Everything from this request has already been returned." } });
+    return { type: "modal", callback_id: "return_submit", private_metadata: JSON.stringify(meta),
+      title: { type: "plain_text", text: "Return items" }, close: { type: "plain_text", text: "Close" }, blocks };
+  }
+  for (const it of items) {
+    blocks.push({ type: "input", optional: true, block_id: `ret_${it.item_id}`,
+      label: { type: "plain_text", text: `${it.name}${it.unit ? ` (${it.unit})` : ""} · took ${it.taken}`.slice(0, 150) },
+      element: { type: "number_input", is_decimal_allowed: true, min_value: "0", max_value: String(it.remaining), action_id: "v",
+        placeholder: { type: "plain_text", text: `up to ${it.remaining}` } } });
+  }
+  return { type: "modal", callback_id: "return_submit", private_metadata: JSON.stringify(meta),
+    title: { type: "plain_text", text: "Return items" }, submit: { type: "plain_text", text: "Return" }, close: { type: "plain_text", text: "Cancel" }, blocks };
+}
+
 async function collectOrder(orderId: string) {
   const c = db();
   const { data: order } = await c.from("req_orders").select("*").eq("id", orderId).maybeSingle();
@@ -198,7 +245,22 @@ Deno.serve(async (req) => {
     if (action.action_id === "collect_order") {
       const order = await collectOrder(String(action.value));
       await slack("chat.update", BOT(), { channel: payload.channel.id, ts: payload.message.ts, text: "Collected",
-        blocks: [{ type: "section", text: { type: "mrkdwn", text: `✅ *Collected* — stock updated for request #${order?.number ?? ""}.` } }] });
+        blocks: [
+          { type: "section", text: { type: "mrkdwn", text: `✅ *Collected* — stock updated for request #${order?.number ?? ""}.` } },
+          { type: "actions", elements: [{ type: "button",
+            text: { type: "plain_text", text: "Return items" }, action_id: "return_start", value: String(action.value) }] },
+        ] });
+      return ok();
+    }
+    if (action.action_id === "return_start") {
+      const parentId = String(action.value);
+      const { data: parent } = await db().from("req_orders").select("id, number, slack_channel, slack_thread_ts").eq("id", parentId).maybeSingle();
+      if (!parent) return ok();
+      const rm = { parent_id: parent.id, number: parent.number,
+        channel: payload.channel?.id ?? parent.slack_channel,
+        thread_ts: payload.message?.thread_ts || payload.message?.ts || parent.slack_thread_ts,
+        requester: payload.user?.name || payload.user?.username || "Someone", slack_id: payload.user?.id };
+      await slack("views.open", BOT(), { trigger_id: payload.trigger_id, view: await buildReturnView(parent.id, rm) });
       return ok();
     }
     return ok();
@@ -276,6 +338,49 @@ Deno.serve(async (req) => {
       } else {
         await slack("chat.postMessage", BOT(), { channel: meta.channel, thread_ts: meta.thread_ts, text: `Request #${order.number} submitted`, blocks: conf });
       }
+    }
+    return jsonResp({ response_action: "clear" });
+  }
+
+  // return submit — user gives back some of what they collected
+  if (payload.type === "view_submission" && payload.view?.callback_id === "return_submit") {
+    const meta = JSON.parse(payload.view.private_metadata || "{}");
+    const values = payload.view.state?.values ?? {};
+    const items = await returnableItems(String(meta.parent_id));
+    const remMap = new Map(items.map((it) => [it.item_id, it]));
+    const cart: { item_id: string; name: string; unit: string; qty: number }[] = [];
+    const errors: Record<string, string> = {};
+    for (const [bid, v] of Object.entries(values as Record<string, Record<string, { value?: string }>>)) {
+      if (!bid.startsWith("ret_")) continue;
+      const it = remMap.get(bid.slice(4));
+      const raw = v?.v?.value;
+      if (raw === undefined || raw === null || String(raw).trim() === "") continue;
+      const n = Number(raw);
+      if (!it) continue;
+      if (!Number.isFinite(n) || n <= 0) { errors[bid] = "Enter a number greater than 0."; continue; }
+      if (n > it.remaining) { errors[bid] = `You can return at most ${it.remaining}.`; continue; }
+      cart.push({ item_id: it.item_id, name: it.name, unit: it.unit, qty: n });
+    }
+    if (Object.keys(errors).length) return jsonResp({ response_action: "errors", errors });
+    if (!cart.length) {
+      return jsonResp({ response_action: "errors", errors: items.length ? { [`ret_${items[0].item_id}`]: "Enter a quantity for at least one item." } : {} });
+    }
+    const c = db();
+    const { data: parent } = await c.from("req_orders").select("*").eq("id", String(meta.parent_id)).maybeSingle();
+    const { data: order, error } = await c.from("req_orders").insert({
+      property_id: parent?.property_id ?? null, department_id: parent?.department_id ?? null, department_name: parent?.department_name ?? "",
+      requester_name: meta.requester ?? "Someone", requester_slack_id: meta.slack_id ?? null, source: "slack",
+      slack_channel: parent?.slack_channel ?? meta.channel ?? null, slack_thread_ts: parent?.slack_thread_ts ?? meta.thread_ts ?? null,
+      is_return: true, parent_order_id: String(meta.parent_id),
+    }).select("id, number").single();
+    if (error || !order) return jsonResp({ response_action: "errors", errors: { [`ret_${cart[0].item_id}`]: "Could not save — please try again." } });
+    await c.from("req_order_items").insert(cart.map((it) => ({ order_id: order.id, item_id: it.item_id, item_name: it.name, unit: it.unit || null, quantity: it.qty })));
+    const chan = parent?.slack_channel ?? meta.channel;
+    const thread = parent?.slack_thread_ts ?? meta.thread_ts;
+    if (chan) {
+      const rows = cart.map((it) => `• ${it.name} — ${it.qty} ${it.unit ?? ""}`).join("\n");
+      await slack("chat.postMessage", BOT(), { channel: chan, thread_ts: thread, text: `Return #${order.number} submitted`,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: `↩️ *Return #${order.number}* submitted by *${meta.requester}* — waiting for approval:\n${rows}` } }] });
     }
     return jsonResp({ response_action: "clear" });
   }

@@ -105,7 +105,8 @@ export function OrderDetailModal({ order, properties, departments, areas, items,
           <div>
             <div className="flex items-center gap-2">
               <span className="rounded-lg bg-stone-100 px-2 py-0.5 text-sm font-bold text-stone-700">#{order.number}</span>
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${statusBadge[order.status]}`}>{statusWord[order.status]}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${statusBadge[order.status]}`}>{order.is_return ? (order.status === "collected" ? "Returned ✓" : order.status === "rejected" ? "Return rejected" : "Return · pending") : statusWord[order.status]}</span>
+              {order.is_return && <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">↩️ return</span>}
               {isQuick && <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700"><Zap size={11} /> quick</span>}
             </div>
             <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm font-medium text-stone-900">
@@ -134,8 +135,36 @@ export function OrderDetailModal({ order, properties, departments, areas, items,
           )}
         </div>
 
-        {/* ---- quick-req resolver ------------------------------------------ */}
-        {isQuick ? (
+        {/* ---- return approval --------------------------------------------- */}
+        {order.is_return ? (
+          <div className="flex flex-wrap gap-2 border-t border-stone-100 px-5 py-3">
+            <p className="mb-1 w-full text-[11px] text-stone-500">↩️ Return request — approving puts these quantities back into stock (sealed / unopened items).</p>
+            {rejecting ? (
+              <div className="flex w-full items-center gap-2">
+                <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && reason.trim() && act(() => decideOrder(order.id, "reject", reason.trim()), `Rejected return #${order.number}`)}
+                  placeholder="Reason for rejecting (required)"
+                  className="flex-1 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-red-500" />
+                <button onClick={() => act(() => decideOrder(order.id, "reject", reason.trim()), `Rejected return #${order.number}`)} disabled={busy || !reason.trim()}
+                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">Confirm</button>
+                <button onClick={() => setRejecting(false)} className="rounded-lg px-2 py-1.5 text-sm text-stone-500 hover:bg-stone-100">Cancel</button>
+              </div>
+            ) : order.status === "pending" ? (
+              <>
+                <button onClick={() => act(() => decideOrder(order.id, "return_approve"), `Return #${order.number} approved — stock put back`)} disabled={busy}
+                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                  <Undo2 size={15} /> Approve return — put back
+                </button>
+                <button onClick={() => setRejecting(true)} disabled={busy}
+                  className="inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
+                  <X size={15} /> Reject
+                </button>
+              </>
+            ) : (
+              <button onClick={onClose} className="flex-1 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50">Close</button>
+            )}
+          </div>
+        ) : isQuick ? (
           <div className="border-t border-stone-100 px-5 py-3">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">{step === "pick" ? `Add “${reqName}” — qty ${reqQty}` : `Issue “${chosenName}” — asked ${reqQty}`}</p>
             <p className="mb-2 text-[11px] text-stone-500">{step === "pick" ? "First add the item to a branch/department. Next you’ll set how much to issue." : "Set the quantity to issue, then approve. Stock only leaves when it’s collected — a Collect button is posted in Slack."}</p>

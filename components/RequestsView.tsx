@@ -17,6 +17,10 @@ const statusBadge: Record<OrderStatus, string> = {
 const statusWord: Record<OrderStatus, string> = {
   pending: "Pending", accepted: "Accepted · awaiting collect", rejected: "Rejected", collected: "Collected",
 };
+const returnWord: Record<OrderStatus, string> = {
+  pending: "Return · pending", accepted: "Return · pending", rejected: "Return rejected", collected: "Returned ✓",
+};
+const wordFor = (o: ReqOrder) => (o.is_return ? returnWord[o.status] : statusWord[o.status]);
 
 export function RequestsView({ orders, onChanged, onOpen }: {
   orders: ReqOrder[]; onChanged: (msg: string) => void; onOpen: (o: ReqOrder) => void;
@@ -39,12 +43,13 @@ export function RequestsView({ orders, onChanged, onOpen }: {
     () => (filter === "all" ? orders : orders.filter((o) => o.status === filter)),
     [orders, filter]);
 
-  async function act(o: ReqOrder, action: "accept" | "reject" | "collect" | "undo", r?: string) {
+  async function act(o: ReqOrder, action: "accept" | "reject" | "collect" | "undo" | "return_approve", r?: string) {
     setBusyId(o.id);
     try {
       await decideOrder(o.id, action, r);
       const msg = action === "accept" ? `Accepted #${o.number}` : action === "reject" ? `Rejected #${o.number}`
-        : action === "undo" ? `Undone #${o.number} — stock restored` : `Collected #${o.number}`;
+        : action === "undo" ? `Undone #${o.number} — stock restored`
+        : action === "return_approve" ? `Return #${o.number} approved — stock put back` : `Collected #${o.number}`;
       onChanged(msg);
       setRejectingId(null); setReason("");
     } catch (e) { alert(e instanceof Error ? e.message : "Failed"); }
@@ -122,6 +127,7 @@ export function RequestsView({ orders, onChanged, onOpen }: {
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-stone-900">
                       {o.requester_name ?? "Someone"}
+                      {o.is_return && <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[11px] font-semibold text-indigo-700">↩️ Return</span>}
                       <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 px-1.5 py-0.5 text-[11px] font-normal text-stone-500">
                         {o.source === "slack" ? <><MessageSquare size={11} /> Slack</> : <><Globe size={11} /> {o.source}</>}
                       </span>
@@ -130,7 +136,7 @@ export function RequestsView({ orders, onChanged, onOpen }: {
                       {[o.properties?.code, o.department_name].filter(Boolean).join(" · ")} · {fmtDateTime(o.created_at)}
                     </p>
                   </div>
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${statusBadge[o.status]}`}>{statusWord[o.status]}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${statusBadge[o.status]}`}>{wordFor(o)}</span>
                 </div>
 
                 <div className="mt-3 rounded-xl bg-stone-50 px-3 py-2">
@@ -163,6 +169,19 @@ export function RequestsView({ orders, onChanged, onOpen }: {
                       <button onClick={() => { setRejectingId(null); setReason(""); }}
                         className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-stone-500 hover:bg-stone-100">Cancel</button>
                     </div>
+                  ) : o.is_return ? (
+                    o.status === "pending" && (
+                      <>
+                        <button onClick={() => act(o, "return_approve")} disabled={busy}
+                          className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                          <Undo2 size={13} /> Approve return — put back
+                        </button>
+                        <button onClick={() => { setRejectingId(o.id); setReason(""); }} disabled={busy}
+                          className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50">
+                          <X size={13} /> Reject
+                        </button>
+                      </>
+                    )
                   ) : (
                     <>
                       {o.status === "pending" && !o.req_order_items?.[0]?.item_id && (
@@ -197,7 +216,7 @@ export function RequestsView({ orders, onChanged, onOpen }: {
                       )}
                     </>
                   )}
-                  {o.status === "collected" && (
+                  {o.status === "collected" && !o.is_return && (
                     <button onClick={() => act(o, "undo")} disabled={busy}
                       className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-stone-600 ring-1 ring-stone-300 hover:bg-stone-50 disabled:opacity-50">
                       <Undo2 size={13} /> Undo — put back

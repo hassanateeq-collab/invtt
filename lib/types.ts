@@ -121,6 +121,8 @@ export interface ReqOrder {
   requester_slack_id: string | null;
   source: "slack" | "web" | "portal";
   status: OrderStatus;
+  is_return: boolean;                  // this order is a return (stock goes back)
+  parent_order_id: string | null;      // the collected order it returns against
   reject_reason: string | null;
   slack_channel: string | null;
   slack_thread_ts: string | null;

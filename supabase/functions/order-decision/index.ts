@@ -134,12 +134,42 @@ Deno.serve(async (req) => {
       });
     }
     await c.from("req_orders").update({ status: "collected", collected_at: new Date().toISOString() }).eq("id", order_id);
-    // remove the Slack "Collect" button (edit it in place) so it can't be tapped again
-    const collectedBlock = [{ type: "section", text: { type: "mrkdwn", text: `📦 *Request #${order.number}* collected — stock updated.` } }];
+    // swap the "Collect" button for a "Return" button (sealed/unopened items can
+    // be given back — the keeper approves the return in the portal)
+    const collectedBlock = [
+      { type: "section", text: { type: "mrkdwn", text: `📦 *Request #${order.number}* collected — stock updated.` } },
+      { type: "actions", elements: [{ type: "button",
+        text: { type: "plain_text", text: "Return items" }, action_id: "return_start", value: order_id }] },
+    ];
     if (order.slack_channel && order.slack_collect_ts) {
       await slack("chat.update", { channel: order.slack_channel, ts: order.slack_collect_ts, text: `Request #${order.number} collected`, blocks: collectedBlock });
     } else if (order.slack_channel && order.slack_thread_ts) {
       await slack("chat.postMessage", { channel: order.slack_channel, thread_ts: order.slack_thread_ts, text: `Request #${order.number} collected`, blocks: collectedBlock });
+    }
+    return json({ ok: true });
+  }
+
+  if (action === "return_approve") {
+    // Approve a return request: add the returned quantity back to stock (as an
+    // 'adjustment' so it isn't counted as a purchase in the Cost report) and mark
+    // the return 'collected' (done). Only valid for a return that is pending.
+    if (!order.is_return) return bad("This is not a return request.");
+    if (order.status !== "pending") return bad("This return was already handled.");
+    const { data: lines } = await c.from("req_order_items").select("*").eq("order_id", order_id);
+    for (const l of lines ?? []) {
+      const q = Number(l.quantity) || 0;
+      if (!l.item_id || !(q > 0)) continue;
+      await c.from("stock_movements").insert({
+        item_id: l.item_id, type: "adjustment", quantity: q,
+        reason: `Returned (req #${order.number})`,
+      });
+    }
+    await c.from("req_orders").update({ status: "collected", decided_at: new Date().toISOString(), decided_by: _uid, collected_at: new Date().toISOString() }).eq("id", order_id);
+    if (order.slack_channel && order.slack_thread_ts) {
+      const rows = (lines ?? []).map((l) => `• *${l.item_name}* — ${l.quantity} ${l.unit ?? ""}`).join("\n");
+      await slack("chat.postMessage", { channel: order.slack_channel, thread_ts: order.slack_thread_ts,
+        text: `Return #${order.number} approved`,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: `↩️ *Return #${order.number} approved* — put back:\n${rows || "—"}` } }] });
     }
     return json({ ok: true });
   }
