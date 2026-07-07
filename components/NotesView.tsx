@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { NotebookPen, Plus, Pencil, Trash2, Check, X, BellRing, TriangleAlert } from "lucide-react";
+import { NotebookPen, Plus, Pencil, Trash2, Check, X, BellRing, TriangleAlert, Search } from "lucide-react";
 import type { ItemStock, Note, Property } from "@/lib/types";
 import { deleteNote, upsertNote } from "@/lib/api";
 
@@ -21,6 +21,7 @@ export function NotesView({ notes, items, properties, onChanged }: {
   const [newBody, setNewBody] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState("");
+  const [remQuery, setRemQuery] = useState("");
 
   const run = async (fn: () => Promise<unknown>, msg: string) => {
     setBusy(true);
@@ -40,6 +41,10 @@ export function NotesView({ notes, items, properties, onChanged }: {
   const reminders = useMemo(
     () => items.filter((i) => i.current_stock <= 0).sort((a, b) => a.current_stock - b.current_stock),
     [items]);
+  const filteredReminders = useMemo(() => {
+    const q = remQuery.trim().toLowerCase();
+    return q ? reminders.filter((i) => i.name.toLowerCase().includes(q)) : reminders;
+  }, [reminders, remQuery]);
 
   return (
     <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -105,24 +110,35 @@ export function NotesView({ notes, items, properties, onChanged }: {
 
       {/* Portal reminders */}
       <div className="rounded-2xl border border-stone-200 bg-white p-4">
-        <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-stone-700"><BellRing size={16} className="text-amber-600" /> Portal reminders</h2>
+        <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-stone-700"><BellRing size={16} className="text-amber-600" /> Portal reminders <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">{reminders.length}</span></h2>
         <p className="mb-3 text-xs text-stone-400">Items that are out of stock (zero) — restock these. Clears itself once you receive/adjust stock.</p>
 
         {reminders.length === 0 ? (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-8 text-center text-sm text-emerald-700">All clear — nothing out of stock. ✅</div>
         ) : (
-          <div className="space-y-2">
-            {reminders.map((i) => (
-              <div key={i.id} className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2.5">
-                <TriangleAlert size={16} className="shrink-0 text-amber-600" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-stone-900">{i.name}</p>
-                  <p className="text-xs text-stone-500">{[branchOf(i.property_id)?.code].filter(Boolean).join("")} · {i.current_stock < 0 ? <>short by <span className="font-semibold text-red-600">{Math.abs(i.current_stock)} {i.unit}</span></> : <span className="font-semibold text-red-600">out of stock</span>}</p>
-                </div>
-                <span className="tnum text-sm font-semibold text-red-600">{i.current_stock}</span>
+          <>
+            <div className="relative mb-2">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <input value={remQuery} onChange={(e) => setRemQuery(e.target.value)} placeholder="Search out-of-stock items…"
+                className="w-full rounded-xl border border-stone-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+            </div>
+            {filteredReminders.length === 0 ? (
+              <p className="py-6 text-center text-sm text-stone-400">No items match “{remQuery}”.</p>
+            ) : (
+              <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+                {filteredReminders.map((i) => (
+                  <div key={i.id} className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2.5">
+                    <TriangleAlert size={16} className="shrink-0 text-amber-600" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-stone-900">{i.name}</p>
+                      <p className="text-xs text-stone-500">{[branchOf(i.property_id)?.code].filter(Boolean).join("")} · {i.current_stock < 0 ? <>short by <span className="font-semibold text-red-600">{Math.abs(i.current_stock)} {i.unit}</span></> : <span className="font-semibold text-red-600">out of stock</span>}</p>
+                    </div>
+                    <span className="tnum text-sm font-semibold text-red-600">{i.current_stock}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>
